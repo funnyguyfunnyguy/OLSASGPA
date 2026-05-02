@@ -404,7 +404,7 @@
       <div>Code / Title</div>
       <div>Weight</div>
       <div>Grade</div>
-      <div style="text-align:right">OLSAS</div>
+      <div style="text-align:right">OLSAS Pts</div>
       <div></div>
     </div>
     <div class="courses-scroll" id="courses"></div>
@@ -587,6 +587,8 @@ function renderRows() {
   }
   state.rows.forEach(r => {
     const conv = convertGrade(state.scale, r.grade);
+    const w = parseFloat(r.weight);
+    const weighted = (conv !== null && isFinite(w) && w > 0) ? (w * conv) : null;
     const row = document.createElement('div');
     row.className = 'course-row';
     row.innerHTML = `
@@ -594,7 +596,7 @@ function renderRows() {
       <input type="text" placeholder="Course code / title" value="${esc(r.code)}" data-id="${r.id}" data-k="code">
       <input type="text" placeholder="1 or 2" value="${esc(r.weight)}" data-id="${r.id}" data-k="weight">
       <input type="text" placeholder="${scalePlaceholder()}" value="${esc(r.grade)}" data-id="${r.id}" data-k="grade">
-      <div class="conv-val${conv === null && r.grade ? ' invalid' : ''}">${conv !== null ? conv.toFixed(2) : (r.grade ? '?' : '—')}</div>
+      <div class="conv-val${conv === null && r.grade ? ' invalid' : ''}">${weighted !== null ? weighted.toFixed(2) : (r.grade ? '?' : '—')}</div>
       <button class="btn-icon" data-del="${r.id}">×</button>
     `;
     cont.appendChild(row);
@@ -621,9 +623,11 @@ function updateConv(input) {
   const r = state.rows.find(x => x.id === input.dataset.id);
   if (!r || !row) return;
   const conv = convertGrade(state.scale, r.grade);
+  const w = parseFloat(r.weight);
+  const weighted = (conv !== null && isFinite(w) && w > 0) ? (w * conv) : null;
   const el = row.querySelector('.conv-val');
   el.className = 'conv-val' + (conv === null && r.grade ? ' invalid' : '');
-  el.textContent = conv !== null ? conv.toFixed(2) : (r.grade ? '?' : '—');
+  el.textContent = weighted !== null ? weighted.toFixed(2) : (r.grade ? '?' : '—');
 }
 
 function esc(s) { return String(s ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
