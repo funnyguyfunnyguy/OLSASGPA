@@ -500,7 +500,10 @@
     // RegEx Patterns
     const termRe = /\b(20\d{2})\s*(Fall|Winter|Spring|Summer)/i;
     const codeRe = /\b([A-Z]{2,8}(?:\s|\/)?\s?\d[A-Z0-9]{2,4})\b/;
-    const gradeRe = /\b(A\+|A|A\-|B\+|B|B\-|C\+|C|C\-|D\+|D|D\-|F|COM|MT)\b(?!\s*\/)/;
+    
+    // Fixed grade regex to capture + and - properly by avoiding \b at the end
+    const gradeRe = /(?:\s|^)(A\+|A|A\-|B\+|B|B\-|C\+|C|C\-|D\+|D|D\-|F|COM|MT)(?=\s|$)/i;
+    
     const macUnitRe = /\b(\d{1,2}(?:\.\d{1,2})?)\/\d{1,2}(?:\.\d{1,2})?\b/;
 
     lines.forEach(text => {
@@ -511,7 +514,8 @@
       if (!codeMatch) return;
 
       let code = codeMatch[1].replace(/\s+/g, ' ');
-      let grade = text.match(gradeRe)?.[1] || '';
+      let gradeMatch = text.match(gradeRe);
+      let grade = gradeMatch ? gradeMatch[1].toUpperCase() : '';
       
       // Fallback to percentage if no letter grade found
       if(!grade) {
@@ -522,9 +526,9 @@
       let weight = 1.0;
       const macUnit = text.match(macUnitRe);
       if (macUnit) {
-        // McMaster specific logic: 3 units = 1.0 weight.
+        // Updated McMaster specific logic: >= 5 units = 2.0 weight. < 5 units = 1.0 weight.
         const units = parseFloat(macUnit[1]);
-        weight = parseFloat((units / 3.0).toFixed(2)); 
+        weight = units >= 5 ? 2.0 : 1.0; 
       } else {
         // Standard weight fallback
         const std = text.match(/\b(0\.5|1\.0|2\.0|3\.0|6\.0)\b/);
