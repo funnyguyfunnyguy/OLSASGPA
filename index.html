@@ -1,192 +1,347 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Advanced OLSAS Grade Analyzer</title>
-  <style>
-    :root {
-      --bg: #f4f7f6;
-      --surface: #ffffff;
-      --text-main: #1e293b;
-      --text-muted: #64748b;
-      --border: #e2e8f0;
-      --primary: #0ea5e9;
-      --primary-hover: #0284c7;
-      --danger: #ef4444;
-      --success: #10b981;
-      --radius: 8px;
-      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OLSAS GPA Calculator</title>
+<style>
+  :root {
+    --bg: #f4f7f6;
+    --surface: #ffffff;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --primary: #0ea5e9;
+    --primary-hover: #0284c7;
+    --primary-bg: #f0f9ff;
+    --danger: #ef4444;
+    --success: #10b981;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: var(--font);
-      background-color: var(--bg);
-      color: var(--text-main);
-      line-height: 1.5;
-      padding: 2rem 1rem;
-    }
+  body {
+    font-family: var(--font);
+    background-color: var(--bg);
+    color: var(--text-main);
+    line-height: 1.5;
+    padding: 2rem 1rem;
+  }
 
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
 
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-      padding: 1.5rem;
-      border: 1px solid var(--border);
-    }
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+  }
 
-    .header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-    }
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 
-    h1 { font-size: 1.5rem; font-weight: 600; color: #0f172a; }
-    h2 { font-size: 1.1rem; font-weight: 600; color: #334155; margin-bottom: 1rem; }
+  h1 { font-size: 1.5rem; font-weight: 600; color: #0f172a; }
+  h1 span { font-weight: 400; color: var(--text-muted); }
+  h2 { font-size: 1.1rem; font-weight: 600; color: #334155; margin-bottom: 1rem; }
+  .sub { font-size: 0.85rem; color: var(--text-muted); }
 
-    /* Settings & Dropzone */
-    .controls-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 2fr;
-      gap: 1rem;
-      align-items: stretch;
-    }
+  /* ============ Controls ============ */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  @media (max-width: 768px) { .controls-grid { grid-template-columns: 1fr; } }
 
-    @media (max-width: 768px) {
-      .controls-grid { grid-template-columns: 1fr; }
-    }
+  .field { display: flex; flex-direction: column; gap: 0.4rem; }
+  .field label:first-child {
+    font-size: 0.8rem; font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
 
-    .field { display: flex; flex-direction: column; gap: 0.4rem; }
-    .field label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    
-    select, input {
-      padding: 0.6rem 0.8rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-family: inherit;
-      font-size: 0.9rem;
-      color: var(--text-main);
-      background: var(--surface);
-      transition: all 0.2s;
-    }
-    select:focus, input:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
-    }
+  select, input {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    background: var(--surface);
+    transition: all 0.2s;
+    width: 100%;
+  }
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  }
 
-    .dropzone {
-      border: 2px dashed var(--border);
-      border-radius: 6px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #f8fafc;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.2s;
-      text-align: center;
-      padding: 1rem;
-    }
-    .dropzone:hover, .dropzone.hover {
-      border-color: var(--primary);
-      background: #f0f9ff;
-      color: var(--primary);
-    }
-    .dropzone input[type="file"] { display: none; }
-    .dropzone .small { font-size: 0.8rem; margin-top: 0.25rem; }
+  /* ============ Dropzone ============ */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    padding: 1rem;
+    flex: 1;
+  }
+  .dropzone:hover, .dropzone.hover {
+    border-color: var(--primary);
+    background: var(--primary-bg);
+    color: var(--primary);
+  }
+  .dropzone input[type="file"] { display: none; }
+  .dropzone .small { font-size: 0.78rem; margin-top: 0.25rem; }
 
-    /* Metrics */
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1rem;
-    }
-    .metric {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.25rem;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
-    .metric .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; }
-    .metric .val { font-size: 2.2rem; font-weight: 700; color: var(--primary); line-height: 1; }
-    .metric .desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
+  /* Scale preview toggle */
+  details.scale-toggle { margin-top: 0.5rem; }
+  details.scale-toggle summary {
+    font-size: 0.8rem; color: var(--primary); cursor: pointer;
+    font-weight: 500; list-style: none; user-select: none;
+  }
+  details.scale-toggle summary::-webkit-details-marker { display: none; }
+  .scale-preview {
+    margin-top: 0.75rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .scale-preview table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .scale-preview th {
+    text-align: left; font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-main); padding: 2px 0 6px; border-bottom: 1px solid var(--border);
+  }
+  .scale-preview td { padding: 2px 0; }
+  .scale-preview td:last-child { text-align: right; color: var(--text-main); font-weight: 500; }
 
-    /* Table */
-    .courses-header {
-      display: grid;
-      grid-template-columns: 0.8fr 1.5fr 0.8fr 0.8fr 0.8fr 0.8fr 40px;
-      gap: 1rem;
-      padding-bottom: 0.75rem;
-      border-bottom: 2px solid var(--border);
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-    }
+  /* ============ Metrics ============ */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+  @media (max-width: 768px) { .metrics-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .metrics-grid { grid-template-columns: 1fr; } }
 
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  }
+  .metric .label {
+    font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+  .metric .val {
+    font-size: 2.2rem; font-weight: 700;
+    color: var(--primary); line-height: 1;
+    font-variant-numeric: tabular-nums;
+    transition: opacity 0.15s;
+  }
+  .metric .val.fade { opacity: 0.3; }
+  .metric .desc { font-size: 0.73rem; color: var(--text-muted); margin-top: 0.5rem; }
+
+  /* ============ Distribution ============ */
+  .dist-section { display: none; }
+  .dist-section.show { display: block; }
+  .dist-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 56px;
+    gap: 8px;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 0.82rem;
+  }
+  .dist-label { font-weight: 600; color: var(--text-main); }
+  .dist-bar-track {
+    height: 6px;
+    background: #f1f5f9;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .dist-bar {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .dist-count { text-align: right; color: var(--text-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+
+  /* ============ Course Table ============ */
+  .courses-header {
+    display: grid;
+    grid-template-columns: 0.6fr 1.8fr 0.6fr 0.8fr 0.7fr 36px;
+    gap: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .course-row {
+    display: grid;
+    grid-template-columns: 0.6fr 1.8fr 0.6fr 0.8fr 0.7fr 36px;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .course-row input {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .conv-val {
+    font-weight: 600;
+    color: var(--primary);
+    text-align: right;
+    padding-right: 0.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .conv-val.invalid { color: var(--danger); font-weight: 400; font-size: 0.8rem; }
+
+  .btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s;
+  }
+  .btn-icon:hover { color: var(--danger); }
+
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .btn {
+    padding: 0.55rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+  }
+  .btn-outline:hover { border-color: var(--text-muted); }
+  .btn-danger {
+    background: transparent;
+    border: 1px solid #fee2e2;
+    color: var(--danger);
+  }
+  .btn-danger:hover { background: #fef2f2; }
+
+  .status {
+    font-size: 0.82rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+    display: none;
+  }
+  .status.err { background: #fef2f2; color: #991b1b; display: block; }
+  .status.ok  { background: #f0fdf4; color: #166534; display: block; }
+
+  .note {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    border-radius: 0 6px 6px 0;
+  }
+  .note strong { color: var(--text-main); }
+  .note a { color: var(--primary); text-decoration: underline; }
+
+  .courses-scroll {
+    max-height: 50vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 0.5rem;
+  }
+
+  /* Mobile: collapse table into stacked cards */
+  @media (max-width: 700px) {
+    .courses-header { display: none; }
     .course-row {
-      display: grid;
-      grid-template-columns: 0.8fr 1.5fr 0.8fr 0.8fr 0.8fr 0.8fr 40px;
-      gap: 1rem;
-      align-items: center;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid #f1f5f9;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
     }
+  }
 
-    .conv-val {
-      font-weight: 600;
-      color: var(--primary);
-      text-align: right;
-      padding-right: 0.5rem;
-    }
-
-    .btn {
-      padding: 0.6rem 1rem;
-      border: none;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      cursor: pointer;
-      transition: background-color 0.15s ease;
-    }
-    .btn-primary { background-color: var(--primary); color: white; }
-    .btn-primary:hover { background-color: var(--primary-hover); }
-    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
-    .btn-outline:hover { border-color: var(--text-muted); }
-    .btn-icon { background: transparent; color: var(--text-muted); font-size: 1.25rem; padding: 0.2rem; display: flex; align-items: center; justify-content: center; }
-    .btn-icon:hover { color: var(--danger); }
-
-    .status { font-size: 0.85rem; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; display: none; }
-    .status.err { background: #fef2f2; color: #991b1b; display: block; }
-    .status.ok { background: #f0fdf4; color: #166534; display: block; }
-    
-    .actions { display: flex; justify-content: space-between; margin-top: 1.5rem; }
-  </style>
+  .empty-state {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+</style>
 </head>
 <body>
 
 <div class="container">
-  
+
   <div class="header-row">
-    <h1>Advanced OLSAS Grade Analyzer</h1>
+    <div>
+      <h1>OLSAS GPA Calculator</h1>
+      <div class="sub">Convert your transcript to the OLSAS 4.0 scale used by Ontario law schools.</div>
+    </div>
   </div>
 
-  <!-- Settings & Input -->
+  <!-- ===== Controls ===== -->
   <div class="card controls-grid">
     <div class="field">
       <label>Institution</label>
@@ -195,374 +350,639 @@
     <div class="field">
       <label>Grade Scale</label>
       <select id="scale"></select>
+      <details class="scale-toggle">
+        <summary>+ View conversion table</summary>
+        <div class="scale-preview" id="scalePreview"></div>
+      </details>
     </div>
     <div class="field">
       <label>Import Transcript</label>
       <label class="dropzone" id="drop">
         <div><strong>Click or Drop PDF</strong></div>
-        <div class="small" id="dropFile">Local parsing, completely private.</div>
+        <div class="small" id="dropFile">Parsed locally — nothing leaves your browser.</div>
         <input type="file" id="pdfInput" accept="application/pdf" />
       </label>
       <div id="parseStatus" class="status"></div>
     </div>
   </div>
 
-  <!-- Advanced Metrics -->
+  <!-- ===== Metrics ===== -->
   <div class="metrics-grid">
     <div class="metric">
       <div class="label">Cumulative OLSAS</div>
-      <div class="val" id="outCum">0.00</div>
-      <div class="desc">Overall GPA across all valid courses.</div>
+      <div class="val" id="outCum">—</div>
+      <div class="desc">Overall GPA across all courses.</div>
     </div>
     <div class="metric">
-      <div class="label">L2 (Last 20)</div>
-      <div class="val" id="outL2">0.00</div>
-      <div class="desc">Most recent 20 half-course equivalents.</div>
+      <div class="label">L2 · Last 20</div>
+      <div class="val" id="outL2">—</div>
+      <div class="desc">Most recent 20 half-course units.</div>
     </div>
     <div class="metric">
-      <div class="label">B3 (Best 3)</div>
-      <div class="val" id="outB3">0.00</div>
-      <div class="desc">Average of your 3 best academic years.</div>
+      <div class="label">B3 · Best 3 Yrs</div>
+      <div class="val" id="outB3">—</div>
+      <div class="desc">Average of your 3 best years.</div>
     </div>
     <div class="metric">
-      <div class="label">L3 (Last 3)</div>
-      <div class="val" id="outL3">0.00</div>
+      <div class="label">L3 · Last 3 Yrs</div>
+      <div class="val" id="outL3">—</div>
       <div class="desc">Average of your 3 most recent years.</div>
     </div>
   </div>
 
-  <!-- Editable Buffer -->
+  <!-- ===== Distribution ===== -->
+  <div class="card dist-section" id="distSection">
+    <h2>Grade Distribution</h2>
+    <div id="distRows"></div>
+  </div>
+
+  <!-- ===== Course Editor ===== -->
   <div class="card">
-    <h2>Course Editor</h2>
+    <h2>Course Editor <span style="font-weight:400;color:var(--text-muted);font-size:0.85rem" id="courseCount"></span></h2>
     <div class="courses-header">
       <div>Year</div>
       <div>Code / Title</div>
-      <div>Weight (OLSAS)</div>
+      <div>Weight</div>
       <div>Grade</div>
-      <div style="text-align: right;">Converted</div>
+      <div style="text-align:right">OLSAS</div>
       <div></div>
     </div>
-    <div id="courses" style="max-height: 50vh; overflow-y: auto; overflow-x: hidden; margin-top: 0.5rem;">
-      <!-- Rows JS -->
-    </div>
+    <div class="courses-scroll" id="courses"></div>
     <div class="actions">
-      <button class="btn btn-outline" onclick="addRow()">+ Add Course Manually</button>
-      <button class="btn btn-outline" style="color: var(--danger); border-color: #fee2e2;" onclick="clearRows()">Clear All</button>
+      <button class="btn btn-outline" onclick="addRow()">+ Add Course</button>
+      <button class="btn btn-danger" onclick="clearRows()">Clear All</button>
     </div>
+  </div>
+
+  <div class="note">
+    <strong>Disclaimer.</strong> This is an unofficial self-evaluation tool. Your real OLSAS GPA is calculated by OUAC using the institution-specific scale on your transcript — see <a href="https://www.ouac.on.ca/guide/olsas-gpa-calculations/" target="_blank" rel="noopener">ouac.on.ca</a>. L2/B3/L3 use common heuristics; each law school (Western, U of T, etc.) may compute them slightly differently. Weight: <strong>1</strong> = half-year (0.5 credit / 3-unit), <strong>2</strong> = full-year (1.0 credit / 6-unit).
   </div>
 
 </div>
 
-<!-- PDF.js Engine -->
+<!-- pdf.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-  if (window['pdfjsLib']) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+if (window['pdfjsLib']) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/* ============================================================
+   SCALE DEFINITIONS — from the OUAC Grade Conversion Table
+   ============================================================ */
+const PERCENT_RANGES = [
+  [90, 100, 4.0], [85, 89, 3.9], [80, 84, 3.7],
+  [77,  79, 3.3], [73, 76, 3.0], [70, 72, 2.7],
+  [67,  69, 2.3], [63, 66, 2.0], [60, 62, 1.7],
+  [57,  59, 1.3], [53, 56, 1.0], [50, 52, 0.7],
+  [ 0,  49, 0.0],
+];
+const MAC_12 = { 12:4.0, 11:3.9, 10:3.7, 9:3.3, 8:3.0, 7:2.7, 6:2.3, 5:2.0, 4:1.7, 3:1.3, 2:1.0, 1:0.7, 0:0.0 };
+const STD_LETTER = { 'A+':4.0,'A':3.9,'A-':3.7,'B+':3.3,'B':3.0,'B-':2.7,'C+':2.3,'C':2.0,'C-':1.7,'D+':1.3,'D':1.0,'D-':0.7,'F':0.0,'E':0.0 };
+const UOFT_LETTER = { 'A+':4.0,'A':4.0,'A-':3.7,'B+':3.3,'B':3.0,'B-':2.7,'C+':2.3,'C':2.0,'C-':1.7,'D+':1.3,'D':1.0,'D-':0.7,'F':0.0 };
+const YORK_9 = { 9:4.0, 8:3.9, 7:3.3, 6:3.0, 5:2.3, 4:2.0, 3:1.7, 2:1.0, 1:0.7, 0:0.0 };
+
+function convertGrade(scaleId, raw) {
+  if (!raw) return null;
+  const s = String(raw).trim().toUpperCase();
+  if (!s) return null;
+
+  // Letter grades → scale-specific lookup
+  if (/^[A-Z][+\-]?$/.test(s)) {
+    if (scaleId === 'uoft_letter') return UOFT_LETTER[s] ?? null;
+    return STD_LETTER[s] ?? null;
   }
 
-  // Universal Conversion Scales
-  const PERCENT_RANGES = [[90, 100, 4.0], [85, 89.99, 3.9], [80, 84.99, 3.7], [77, 79.99, 3.3], [73, 76.99, 3.0], [70, 72.99, 2.7], [67, 69.99, 2.3], [63, 66.99, 2.0], [60, 62.99, 1.7], [57, 59.99, 1.3], [53, 56.99, 1.0], [50, 52.99, 0.7], [0, 49.99, 0.0]];
-  const MAC_12 = { 12: 4.0, 11: 3.9, 10: 3.7, 9: 3.3, 8: 3.0, 7: 2.7, 6: 2.3, 5: 2.0, 4: 1.7, 3: 1.3, 2: 1.0, 1: 0.7, 0: 0.0 };
-  const STD_LETTER = { 'A+': 4.0, 'A': 3.9, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7, 'C+': 2.3, 'C': 2.0, 'C-': 1.7, 'D+': 1.3, 'D': 1.0, 'D-': 0.7, 'F': 0.0 };
-  const UOFT_LETTER = { 'A+': 4.0, 'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7, 'C+': 2.3, 'C': 2.0, 'C-': 1.7, 'D+': 1.3, 'D': 1.0, 'D-': 0.7, 'F': 0.0 };
-  const YORK_9 = { 9: 4.0, 8: 3.9, 7: 3.3, 6: 3.0, 5: 2.3, 4: 2.0, 3: 1.7, 2: 1.0, 1: 0.7, 0: 0.0 };
+  const isNumeric = /^\d+(\.\d+)?\s*%?$/.test(s);
+  if (!isNumeric) return null;
+  const hasPct = s.endsWith('%');
+  const n = parseFloat(s);
 
-  const INSTITUTIONS = [
-    ['mcmaster', 'McMaster University', ['mac_letter', 'percent', 'mac_12'], 'mac_letter'],
-    ['toronto', 'University of Toronto', ['uoft_letter', 'percent'], 'uoft_letter'],
-    ['western', 'Western University', ['percent', 'std_letter'], 'percent'],
-    ['york', 'York University', ['york_9', 'std_letter', 'percent'], 'york_9'],
-    ['queens', "Queen's University", ['percent', 'std_letter'], 'percent'],
-    ['ottawa', 'University of Ottawa', ['percent', 'std_letter'], 'percent'],
-    ['waterloo', 'University of Waterloo', ['percent', 'std_letter'], 'percent'],
-    ['generic', 'Other / Generic Format', ['std_letter', 'percent'], 'std_letter']
-  ];
+  // Numeric scales first when value is in their range (so "11" on mac_12 → 3.9, not 0.0)
+  if (scaleId === 'mac_12' && !hasPct && n >= 0 && n <= 12) {
+    return MAC_12[Math.round(n)] ?? null;
+  }
+  if (scaleId === 'york_9' && !hasPct && n >= 0 && n <= 9) {
+    return YORK_9[Math.round(n)] ?? null;
+  }
 
-  const SCALES = {
-    percent: 'Percentage (0-100)',
-    std_letter: 'Standard Letter (A, B, C)',
-    mac_letter: 'Letter Grade (McMaster)',
-    mac_12: '12-Point Scale',
-    uoft_letter: 'Letter Grade (UofT A=4.0)',
-    york_9: '9-Point Scale'
-  };
+  // Percentage fallback (works for any scale when % sign present, or when scale is percentage)
+  if (n >= 0 && n <= 100) {
+    for (const [lo, hi, v] of PERCENT_RANGES) if (n >= lo && n <= hi) return v;
+  }
+  return null;
+}
 
-  let state = {
-    uni: 'mcmaster',
-    scale: 'mac_letter',
-    rows: []
-  };
+/* ============================================================
+   INSTITUTIONS
+   ============================================================ */
+const SCALE_NAMES = {
+  percent:     'Percentage (0–100)',
+  std_letter:  'Letter Grade (A+, A, A-, …)',
+  mac_letter:  'Letter Grade (McMaster)',
+  mac_12:      '12-Point Scale',
+  uoft_letter: 'Letter Grade (U of T — A=4.0)',
+  york_9:      '9-Point Scale',
+};
 
-  let idCounter = 1;
-  const newId = () => 'r' + (idCounter++);
+const INSTITUTIONS = [
+  ['mcmaster',   'McMaster University',            ['mac_letter', 'percent', 'mac_12'], 'mac_letter'],
+  ['toronto',    'University of Toronto',          ['uoft_letter', 'percent'],           'uoft_letter'],
+  ['queens',     "Queen's University",             ['percent', 'std_letter'],            'percent'],
+  ['western',    'Western University',             ['percent', 'std_letter'],            'percent'],
+  ['waterloo',   'University of Waterloo',         ['percent', 'std_letter'],            'percent'],
+  ['guelph',     'University of Guelph',           ['percent', 'std_letter'],            'percent'],
+  ['ottawa',     'University of Ottawa',           ['percent', 'std_letter'],            'percent'],
+  ['york',       'York University',                ['york_9', 'std_letter', 'percent'],  'york_9'],
+  ['carleton',   'Carleton University',            ['percent', 'std_letter'],            'percent'],
+  ['laurier',    'Wilfrid Laurier University',     ['percent', 'std_letter'],            'percent'],
+  ['brock',      'Brock University',               ['percent', 'std_letter'],            'percent'],
+  ['trent',      'Trent University',               ['percent', 'std_letter'],            'percent'],
+  ['windsor',    'University of Windsor',          ['percent', 'std_letter'],            'percent'],
+  ['tmu',        'Toronto Metropolitan (Ryerson)', ['percent', 'std_letter'],            'percent'],
+  ['lakehead',   'Lakehead University',            ['percent', 'std_letter'],            'percent'],
+  ['nipissing',  'Nipissing University',           ['percent', 'std_letter'],            'percent'],
+  ['laurentian', 'Laurentian University',          ['percent', 'std_letter'],            'percent'],
+  ['ocad',       'OCAD University',                ['percent', 'std_letter'],            'percent'],
+  ['generic',    'Other / Generic',                ['std_letter', 'percent'],            'std_letter'],
+];
 
-  // Initialization & UI
-  function init() {
-    const uniSel = document.getElementById('uni');
-    INSTITUTIONS.forEach(([k, n]) => uniSel.add(new Option(n, k)));
-    uniSel.value = state.uni;
+/* ============================================================
+   STATE
+   ============================================================ */
+let state = { uni: 'mcmaster', scale: 'mac_letter', rows: [] };
+let idCounter = 1;
+const newId = () => 'r' + (idCounter++);
+
+/* ============================================================
+   UI: selectors + scale preview
+   ============================================================ */
+function init() {
+  const uniSel = document.getElementById('uni');
+  INSTITUTIONS.forEach(([k, n]) => uniSel.add(new Option(n, k)));
+  uniSel.value = state.uni;
+  buildScaleSelect();
+  renderScalePreview();
+
+  uniSel.addEventListener('change', e => {
+    state.uni = e.target.value;
     buildScaleSelect();
-
-    uniSel.addEventListener('change', e => { state.uni = e.target.value; buildScaleSelect(); renderRows(); });
-    document.getElementById('scale').addEventListener('change', e => { state.scale = e.target.value; renderRows(); });
-
-    setupDropzone();
-    addRow(); // Start with one empty row
-  }
-
-  function buildScaleSelect() {
-    const sel = document.getElementById('scale');
-    sel.innerHTML = '';
-    const inst = INSTITUTIONS.find(i => i[0] === state.uni);
-    inst[2].forEach(s => sel.add(new Option(SCALES[s], s)));
-    state.scale = inst[3];
-    sel.value = state.scale;
-  }
-
-  // Grade Conversion Logic
-  function convertGrade(scaleId, raw) {
-    if (!raw) return null;
-    const s = String(raw).trim().toUpperCase();
-    if (!s) return null;
-
-    if (/^[A-Z][+\-]?$/.test(s)) {
-      if (scaleId === 'uoft_letter') return UOFT_LETTER[s] ?? null;
-      return STD_LETTER[s] ?? null;
-    }
-
-    const n = parseFloat(s);
-    if (!isNaN(n)) {
-      if (scaleId === 'mac_12' && n <= 12) return MAC_12[Math.round(n)] ?? null;
-      if (scaleId === 'york_9' && n <= 9) return YORK_9[Math.round(n)] ?? null;
-      if (n >= 0 && n <= 100) {
-        for (const [lo, hi, v] of PERCENT_RANGES) {
-          if (n >= lo && n <= hi) return v;
-        }
-      }
-    }
-    return null;
-  }
-
-  // Advanced Metrics Calculators
-  function calculateMetrics() {
-    const valid = state.rows.filter(r => {
-      r.conv = convertGrade(state.scale, r.grade);
-      r.w = parseFloat(r.weight);
-      return r.conv !== null && !isNaN(r.w) && r.w > 0;
-    });
-
-    // Cumulative
-    let totalW = 0, totalP = 0;
-    valid.forEach(r => { totalW += r.w; totalP += r.w * r.conv; });
-    document.getElementById('outCum').innerText = totalW > 0 ? (totalP / totalW).toFixed(2) : "0.00";
-
-    // L2 (Last 20)
-    let l2W = 0, l2P = 0;
-    // Assuming chronological entry, we reverse to get the newest courses first
-    for (let i = valid.length - 1; i >= 0; i--) {
-      const r = valid[i];
-      const remainingNeed = 20 - l2W;
-      if (remainingNeed <= 0) break;
-      
-      const takeW = Math.min(r.w, remainingNeed);
-      l2W += takeW;
-      l2P += takeW * r.conv;
-    }
-    document.getElementById('outL2').innerText = l2W > 0 ? (l2P / l2W).toFixed(2) : "0.00";
-
-    // Group by Year for B3 and L3
-    const years = {};
-    valid.forEach(r => {
-      const y = r.year || "Unknown";
-      if (!years[y]) years[y] = { w: 0, p: 0 };
-      years[y].w += r.w;
-      years[y].p += r.w * r.conv;
-    });
-
-    const yearlyGPAs = Object.values(years)
-      .filter(y => y.w >= 8) // OLSAS heuristic: must have at least 8 length units (4 full courses) to count as a year
-      .map(y => y.p / y.w);
-
-    // B3 (Best 3)
-    const b3 = [...yearlyGPAs].sort((a, b) => b - a).slice(0, 3);
-    document.getElementById('outB3').innerText = b3.length > 0 ? (b3.reduce((a, b) => a + b, 0) / b3.length).toFixed(2) : "0.00";
-
-    // L3 (Last 3)
-    const l3 = yearlyGPAs.slice(-3); // Assuming dict insertion order roughly matches chronological based on entry
-    document.getElementById('outL3').innerText = l3.length > 0 ? (l3.reduce((a, b) => a + b, 0) / l3.length).toFixed(2) : "0.00";
-  }
-
-  // Row Management
-  function renderRows() {
-    const cont = document.getElementById('courses');
-    cont.innerHTML = '';
-    state.rows.forEach(r => {
-      const conv = convertGrade(state.scale, r.grade);
-      const row = document.createElement('div');
-      row.className = 'course-row';
-      row.innerHTML = `
-        <input type="text" placeholder="1, 2, 3..." value="${r.year}" onchange="updateRow('${r.id}', 'year', this.value)">
-        <input type="text" placeholder="Course Code" value="${r.code}" onchange="updateRow('${r.id}', 'code', this.value)">
-        <input type="number" step="0.01" min="0" placeholder="1.0" value="${r.weight}" onchange="updateRow('${r.id}', 'weight', this.value)">
-        <input type="text" placeholder="A+, 85..." value="${r.grade}" onchange="updateRow('${r.id}', 'grade', this.value)">
-        <div class="conv-val">${conv !== null ? conv.toFixed(2) : '—'}</div>
-        <button class="btn-icon" onclick="deleteRow('${r.id}')">×</button>
-      `;
-      cont.appendChild(row);
-    });
-    calculateMetrics();
-  }
-
-  window.updateRow = (id, field, val) => {
-    const r = state.rows.find(x => x.id === id);
-    if (r) { r[field] = val; renderRows(); }
-  }
-
-  window.addRow = (prefill = {}) => {
-    state.rows.push({ id: newId(), year: prefill.year || '', code: prefill.code || '', weight: prefill.weight || '1.0', grade: prefill.grade || '' });
+    renderScalePreview();
     renderRows();
-  }
-
-  window.deleteRow = (id) => {
-    state.rows = state.rows.filter(r => r.id !== id);
+  });
+  document.getElementById('scale').addEventListener('change', e => {
+    state.scale = e.target.value;
+    renderScalePreview();
     renderRows();
-  }
+  });
 
-  window.clearRows = () => {
-    if(confirm("Clear all data?")) { state.rows = []; renderRows(); }
-  }
+  setupDropzone();
+  renderRows();
+  recalc();
+}
 
-  // PDF Engine (5px Tolerance Cluster Approach)
-  function setupDropzone() {
-    const drop = document.getElementById('drop');
-    const input = document.getElementById('pdfInput');
-    
-    drop.addEventListener('click', () => input.click());
-    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('hover'); });
-    drop.addEventListener('dragleave', e => { e.preventDefault(); drop.classList.remove('hover'); });
-    drop.addEventListener('drop', e => {
-      e.preventDefault(); drop.classList.remove('hover');
-      if (e.dataTransfer.files[0]) handlePDF(e.dataTransfer.files[0]);
+function buildScaleSelect() {
+  const sel = document.getElementById('scale');
+  sel.innerHTML = '';
+  const inst = INSTITUTIONS.find(i => i[0] === state.uni);
+  if (!inst) return;
+  inst[2].forEach(s => sel.add(new Option(SCALE_NAMES[s] || s, s)));
+  if (!inst[2].includes(state.scale)) state.scale = inst[3];
+  sel.value = state.scale;
+}
+
+function renderScalePreview() {
+  const el = document.getElementById('scalePreview');
+  let rows = '';
+  const addRows = (entries) => {
+    entries.forEach(([k, v]) => { if (k === 'E') return; rows += `<tr><td>${k}</td><td>${v.toFixed(2)}</td></tr>`; });
+  };
+  switch (state.scale) {
+    case 'percent':
+      PERCENT_RANGES.forEach(([lo, hi, v]) => { rows += `<tr><td>${lo === hi ? lo : lo + '–' + hi}%</td><td>${v.toFixed(2)}</td></tr>`; });
+      break;
+    case 'mac_12':
+      addRows(Object.entries(MAC_12).reverse()); break;
+    case 'std_letter': case 'mac_letter':
+      addRows(Object.entries(STD_LETTER)); break;
+    case 'uoft_letter':
+      addRows(Object.entries(UOFT_LETTER)); break;
+    case 'york_9':
+      addRows(Object.entries(YORK_9).reverse()); break;
+  }
+  el.innerHTML = `<table><thead><tr><th>Grade</th><th style="text-align:right">OLSAS</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ============================================================
+   COURSE ROWS
+   ============================================================ */
+function renderRows() {
+  const cont = document.getElementById('courses');
+  cont.innerHTML = '';
+  if (!state.rows.length) {
+    cont.innerHTML = '<div class="empty-state">No courses yet. Upload a transcript or click "+ Add Course" below.</div>';
+    recalc();
+    return;
+  }
+  state.rows.forEach(r => {
+    const conv = convertGrade(state.scale, r.grade);
+    const row = document.createElement('div');
+    row.className = 'course-row';
+    row.innerHTML = `
+      <input type="text" placeholder="1–5" value="${esc(r.year)}" data-id="${r.id}" data-k="year">
+      <input type="text" placeholder="Course code / title" value="${esc(r.code)}" data-id="${r.id}" data-k="code">
+      <input type="text" placeholder="1 or 2" value="${esc(r.weight)}" data-id="${r.id}" data-k="weight">
+      <input type="text" placeholder="${scalePlaceholder()}" value="${esc(r.grade)}" data-id="${r.id}" data-k="grade">
+      <div class="conv-val${conv === null && r.grade ? ' invalid' : ''}">${conv !== null ? conv.toFixed(2) : (r.grade ? '?' : '—')}</div>
+      <button class="btn-icon" data-del="${r.id}">×</button>
+    `;
+    cont.appendChild(row);
+  });
+  // Wire events via delegation
+  cont.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const r = state.rows.find(x => x.id === e.target.dataset.id);
+      if (r) { r[e.target.dataset.k] = e.target.value; updateConv(e.target); scheduleRecalc(); }
     });
-    input.addEventListener('change', e => { if (e.target.files[0]) handlePDF(e.target.files[0]); });
+  });
+  cont.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const id = e.currentTarget.dataset.del;
+      state.rows = state.rows.filter(r => r.id !== id);
+      renderRows();
+    });
+  });
+  recalc();
+}
+
+function updateConv(input) {
+  const row = input.closest('.course-row');
+  const r = state.rows.find(x => x.id === input.dataset.id);
+  if (!r || !row) return;
+  const conv = convertGrade(state.scale, r.grade);
+  const el = row.querySelector('.conv-val');
+  el.className = 'conv-val' + (conv === null && r.grade ? ' invalid' : '');
+  el.textContent = conv !== null ? conv.toFixed(2) : (r.grade ? '?' : '—');
+}
+
+function esc(s) { return String(s ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+function scalePlaceholder() {
+  return ({ percent: '87', std_letter: 'A-', mac_letter: 'A-', mac_12: '11', uoft_letter: 'A-', york_9: '8' })[state.scale] || 'grade';
+}
+
+window.addRow = function(prefill = {}) {
+  state.rows.push({
+    id: newId(),
+    year:   prefill.year   || '',
+    code:   prefill.code   || '',
+    weight: prefill.weight || '1',
+    grade:  prefill.grade  || '',
+  });
+  renderRows();
+};
+
+window.clearRows = function() {
+  if (!state.rows.length) return;
+  if (confirm('Clear all courses?')) { state.rows = []; renderRows(); }
+};
+
+/* ============================================================
+   GPA CALCULATIONS
+   ============================================================ */
+function getValid() {
+  return state.rows.map(r => {
+    const w = parseFloat(r.weight);
+    const v = convertGrade(state.scale, r.grade);
+    return (isFinite(w) && w > 0 && v !== null) ? { ...r, w, v } : null;
+  }).filter(Boolean);
+}
+
+function wGpa(list) {
+  let num = 0, den = 0;
+  list.forEach(r => { num += r.w * r.v; den += r.w; });
+  return den > 0 ? num / den : null;
+}
+
+function l2Slice(valid) {
+  const hasYears = valid.some(r => /^\d+$/.test(String(r.year || '').trim()));
+  const ordered = hasYears
+    ? [...valid].sort((a, b) => (parseInt(a.year) || 0) - (parseInt(b.year) || 0))
+    : valid;
+  let acc = 0;
+  const slice = [];
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    slice.unshift(ordered[i]);
+    acc += ordered[i].w;
+    if (acc >= 20) break;
   }
+  return slice;
+}
 
-  async function handlePDF(file) {
-    document.getElementById('dropFile').innerText = file.name;
-    setStatus('Parsing document...', 'ok');
-    
-    try {
-      const buf = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-      const lines = [];
+function yearGroups(valid) {
+  const groups = {};
+  valid.forEach(r => {
+    const y = String(r.year || '').trim() || '?';
+    if (!groups[y]) groups[y] = [];
+    groups[y].push(r);
+  });
+  return Object.entries(groups)
+    .filter(([y, list]) => y !== '?' && list.reduce((s, r) => s + r.w, 0) >= 8)
+    .map(([y, list]) => ({
+      year: y,
+      gpa: wGpa(list),
+      weight: list.reduce((s, r) => s + r.w, 0),
+    }));
+}
 
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const page = await pdf.getPage(p);
-        const tc = await page.getTextContent();
-        
-        // Y-Coordinate Clustering (Fixes McMaster Detached Columns)
-        const clusters = [];
-        tc.items.forEach(it => {
-          const str = it.str.trim();
-          if (!str) return;
-          const y = it.transform[5];
-          const x = it.transform[4];
-          
-          let found = false;
-          for (let c of clusters) {
-            if (Math.abs(c.y - y) < 5) { // 5px tolerance stitches detached columns back together
-              c.items.push({ x, str });
-              c.y = ((c.y * (c.items.length - 1)) + y) / c.items.length; // rolling average
-              found = true; break;
-            }
+function b3(valid) {
+  const yrs = yearGroups(valid);
+  if (!yrs.length) return null;
+  const top = [...yrs].sort((a, b) => b.gpa - a.gpa).slice(0, 3);
+  return top.reduce((s, y) => s + y.gpa, 0) / top.length;
+}
+
+function l3(valid) {
+  const yrs = yearGroups(valid);
+  if (!yrs.length) return null;
+  const sorted = [...yrs].sort((a, b) => {
+    const na = parseFloat(a.year), nb = parseFloat(b.year);
+    return (isFinite(na) && isFinite(nb)) ? na - nb : a.year.localeCompare(b.year);
+  });
+  const last = sorted.slice(-3);
+  return last.length ? last.reduce((s, y) => s + y.gpa, 0) / last.length : null;
+}
+
+function fmt(v) { return v !== null && isFinite(v) ? v.toFixed(2) : '—'; }
+
+function recalc() {
+  const valid = getValid();
+  const cum = wGpa(valid);
+
+  document.getElementById('outCum').textContent = fmt(cum);
+  document.getElementById('outL2').textContent  = fmt(wGpa(l2Slice(valid)));
+  document.getElementById('outB3').textContent  = fmt(b3(valid));
+  document.getElementById('outL3').textContent  = fmt(l3(valid));
+
+  document.getElementById('courseCount').textContent =
+    state.rows.length ? `· ${valid.length} of ${state.rows.length} valid` : '';
+
+  drawDistribution(valid);
+}
+
+let recalcTimer;
+function scheduleRecalc() { clearTimeout(recalcTimer); recalcTimer = setTimeout(recalc, 60); }
+
+/* ============================================================
+   DISTRIBUTION CHART
+   ============================================================ */
+const BINS = [
+  { v:4.0, l:'A+' }, { v:3.9, l:'A' },  { v:3.7, l:'A−' },
+  { v:3.3, l:'B+' }, { v:3.0, l:'B' },  { v:2.7, l:'B−' },
+  { v:2.3, l:'C+' }, { v:2.0, l:'C' },  { v:1.7, l:'C−' },
+  { v:1.3, l:'D+' }, { v:1.0, l:'D' },  { v:0.7, l:'D−' },
+  { v:0.0, l:'F' },
+];
+
+function drawDistribution(valid) {
+  const section = document.getElementById('distSection');
+  const wrap = document.getElementById('distRows');
+  if (!valid.length) { section.classList.remove('show'); return; }
+  section.classList.add('show');
+
+  const totals = BINS.map(() => 0);
+  valid.forEach(r => {
+    const idx = BINS.findIndex(b => Math.abs(b.v - r.v) < 0.05);
+    if (idx >= 0) totals[idx] += r.w;
+  });
+  const max = Math.max(1, ...totals);
+  wrap.innerHTML = '';
+  BINS.forEach((b, i) => {
+    if (totals[i] === 0) return;
+    wrap.innerHTML += `
+      <div class="dist-row">
+        <span class="dist-label">${b.l}</span>
+        <div class="dist-bar-track"><div class="dist-bar" style="width:${totals[i]/max*100}%"></div></div>
+        <span class="dist-count">${totals[i].toFixed(0)} unit${totals[i] === 1 ? '' : 's'}</span>
+      </div>`;
+  });
+}
+
+/* ============================================================
+   PDF PARSING — 5px Y-cluster approach (George's fix for
+   McMaster's detached columns) + proper term tracking.
+   ============================================================ */
+function setupDropzone() {
+  const drop  = document.getElementById('drop');
+  const input = document.getElementById('pdfInput');
+  drop.addEventListener('click', e => { if (e.target.tagName !== 'INPUT') input.click(); });
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('hover'); });
+  drop.addEventListener('dragleave', e => { e.preventDefault(); drop.classList.remove('hover'); });
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('hover');
+    if (e.dataTransfer.files[0]) handlePDF(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', e => { if (e.target.files[0]) handlePDF(e.target.files[0]); });
+}
+
+async function handlePDF(file) {
+  if (!window['pdfjsLib']) { setStatus('PDF.js failed to load.', 'err'); return; }
+  document.getElementById('dropFile').textContent = '📄 ' + file.name;
+  setStatus('Reading transcript…', 'ok');
+
+  try {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const lines = [];
+
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+
+      // 5px Y-coordinate clustering — stitches detached columns back together
+      const clusters = [];
+      tc.items.forEach(it => {
+        const str = it.str.trim();
+        if (!str) return;
+        const y = it.transform[5], x = it.transform[4];
+        let found = false;
+        for (const c of clusters) {
+          if (Math.abs(c.y - y) < 5) {
+            c.items.push({ x, str });
+            c.y = ((c.y * (c.items.length - 1)) + y) / c.items.length;
+            found = true; break;
           }
-          if (!found) clusters.push({ y, items: [{ x, str }] });
-        });
+        }
+        if (!found) clusters.push({ y, items: [{ x, str }] });
+      });
 
-        clusters.sort((a, b) => b.y - a.y).forEach(c => {
-          c.items.sort((a, b) => a.x - b.x); // sort strictly left-to-right
+      clusters
+        .sort((a, b) => b.y - a.y)
+        .forEach(c => {
+          c.items.sort((a, b) => a.x - b.x);
           lines.push(c.items.map(it => it.str).join(' '));
         });
-      }
-
-      extractCourses(lines);
-      
-    } catch (e) {
-      setStatus('Failed to parse PDF.', 'err');
-      console.error(e);
     }
+
+    // Auto-detect institution from text
+    const haystack = lines.join(' ').toUpperCase();
+    const detected = detectInstitution(haystack);
+    if (detected && detected !== state.uni) {
+      state.uni = detected;
+      document.getElementById('uni').value = detected;
+      buildScaleSelect();
+      renderScalePreview();
+    }
+
+    extractCourses(lines);
+  } catch (e) {
+    console.error(e);
+    setStatus('Failed to parse PDF: ' + (e.message || ''), 'err');
   }
+}
 
-  function extractCourses(lines) {
-    const newRows = [];
-    let currentYear = 1;
+function detectInstitution(hay) {
+  const map = [
+    [/MCMASTER/, 'mcmaster'],
+    [/UNIVERSITY OF TORONTO|U(\s|\.)?\s?OF\s?T/, 'toronto'],
+    [/QUEEN'?S\s+UNIVERSITY/, 'queens'],
+    [/UNIVERSITY OF WESTERN ONTARIO|WESTERN UNIVERSITY/, 'western'],
+    [/UNIVERSITY OF WATERLOO/, 'waterloo'],
+    [/UNIVERSITY OF GUELPH/, 'guelph'],
+    [/UNIVERSITY OF OTTAWA|UNIVERSIT[ÉE] D'OTTAWA/, 'ottawa'],
+    [/YORK UNIVERSITY/, 'york'],
+    [/CARLETON UNIVERSITY/, 'carleton'],
+    [/WILFRID LAURIER/, 'laurier'],
+    [/BROCK UNIVERSITY/, 'brock'],
+    [/TRENT UNIVERSITY/, 'trent'],
+    [/UNIVERSITY OF WINDSOR/, 'windsor'],
+    [/TORONTO METROPOLITAN|RYERSON UNIVERSITY/, 'tmu'],
+    [/LAKEHEAD UNIVERSITY/, 'lakehead'],
+    [/NIPISSING UNIVERSITY/, 'nipissing'],
+    [/LAURENTIAN UNIVERSITY/, 'laurentian'],
+    [/OCAD UNIVERSITY/, 'ocad'],
+  ];
+  for (const [re, key] of map) if (re.test(hay)) return key;
+  return null;
+}
 
-    // RegEx Patterns
-    const termRe = /\b(20\d{2})\s*(Fall|Winter|Spring|Summer)/i;
-    const codeRe = /\b([A-Z]{2,8}(?:\s|\/)?\s?\d[A-Z0-9]{2,4})\b/;
-    
-    // Fixed grade regex to capture + and - properly by avoiding \b at the end
-    const gradeRe = /(?:\s|^)(A\+|A|A\-|B\+|B|B\-|C\+|C|C\-|D\+|D|D\-|F|COM|MT)(?=\s|$)/i;
-    
-    const macUnitRe = /\b(\d{1,2}(?:\.\d{1,2})?)\/\d{1,2}(?:\.\d{1,2})?\b/;
+// Skip-grades: non-numeric grades that don't count toward GPA
+const SKIP_GRADES = new Set(['COM','MT','NC','T','P','CR','IP','INC','W','WD','AUD','PASS','FAIL','S','U']);
 
-    lines.forEach(text => {
-      // Track academic year headers
-      if (termRe.test(text)) currentYear++;
+// Header lines that should never be parsed as course rows
+const HEADER_RE = /\b(Term Totals|Cumulative|Transfer Credit|Term GPA|Page \d|Attm.\/Earned|Total Points|GPA Units|Career Record|Transcript valid|Print Date|Issued To|Engineering Work Term|Work Term Details|Company:|Location:|Position\s*:|Start Date|End Date|Program:|Plan:|Term Honours:|Academic Standing|unofficial|Transfer Totals)\b/i;
 
-      const codeMatch = text.match(codeRe);
-      if (!codeMatch) return;
+// Term header detection — "--- 2023 Fall ---" etc
+const TERM_RE = /---\s*(\d{4})\s+(Fall|Winter|Spring(?:\/Summer)?|Summer)\s*---/i;
 
-      let code = codeMatch[1].replace(/\s+/g, ' ');
-      let gradeMatch = text.match(gradeRe);
-      let grade = gradeMatch ? gradeMatch[1].toUpperCase() : '';
-      
-      // Fallback to percentage if no letter grade found
-      if(!grade) {
-         const pct = text.match(/(?:^|\s)(\d{2,3}(?:\.\d{1,2})?)(?:\s*%|\s|$)/);
-         if(pct && parseFloat(pct[1]) >= 30) grade = pct[1];
-      }
+// Course code pattern: 2–10 uppercase letters + space + digit followed by 1–5 alphanum
+const CODE_RE = /\b([A-Z]{2,10})\s+(\d[A-Z0-9]{1,5})\b/;
 
-      let weight = 1.0;
-      const macUnit = text.match(macUnitRe);
-      if (macUnit) {
-        // Updated McMaster specific logic: >= 5 units = 2.0 weight. < 5 units = 1.0 weight.
-        const units = parseFloat(macUnit[1]);
-        weight = units >= 5 ? 2.0 : 1.0; 
+function extractCourses(lines) {
+  const newRows = [];
+
+  // Term → academic year tracker (Fall 2021 + Winter 2022 = Year 1, etc.)
+  let yearCounter = 0;
+  let currentYear = '';
+  const fallToAcademic = {};
+
+  lines.forEach(text => {
+    // Track term headers
+    const tm = text.match(TERM_RE);
+    if (tm) {
+      const cal = parseInt(tm[1], 10);
+      const season = tm[2].toLowerCase();
+      if (season.startsWith('fall')) {
+        yearCounter++;
+        fallToAcademic[cal] = yearCounter;
+        currentYear = String(yearCounter);
+      } else if (season.startsWith('winter')) {
+        currentYear = String(fallToAcademic[cal - 1] || yearCounter || 1);
       } else {
-        // Standard weight fallback
-        const std = text.match(/\b(0\.5|1\.0|2\.0|3\.0|6\.0)\b/);
-        if (std) {
-           let w = parseFloat(std[1]);
-           weight = w === 3.0 || w === 0.5 ? 1.0 : (w === 6.0 || w === 1.0 ? 2.0 : w);
-        }
+        currentYear = String(fallToAcademic[cal - 1] || fallToAcademic[cal] || yearCounter || '');
       }
+      return;
+    }
 
-      if (grade && grade !== 'COM' && grade !== 'MT') { // Ignore pass/fail
-         newRows.push({ year: Math.floor(currentYear/2), code, weight, grade });
-      }
+    // Skip header/meta lines
+    if (HEADER_RE.test(text)) return;
+
+    // Try to match a course code
+    const cm = text.match(CODE_RE);
+    if (!cm) return;
+    const code = `${cm[1]} ${cm[2]}`;
+    let rest = text.slice(cm.index + cm[0].length).trim();
+
+    // Extract units (X.XX/X.XX) to determine OLSAS weight
+    let weight = 1;
+    const unitMatch = rest.match(/(\d+(?:\.\d{1,2})?)\s*\/\s*(\d+(?:\.\d{1,2})?)/);
+    if (unitMatch) {
+      const units = parseFloat(unitMatch[1]);
+      if (units >= 5) weight = 2;     // McMaster 5-6 unit / UofT 1.0 credit
+      else if (units >= 2) weight = 1; // McMaster 3-4 unit / UofT 0.5 credit
+      else if (units >= 0.9) weight = 2;
+      else if (units >= 0.4) weight = 1;
+      rest = rest.slice(unitMatch.index + unitMatch[0].length).trim();
+    }
+
+    // Grade: take the LAST token that looks like a grade (letter or percentage)
+    // This avoids grabbing "A" from inside "Mathematics II-A"
+    const tokens = rest.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return;
+    const last = tokens[tokens.length - 1].replace(/%$/, '').toUpperCase();
+    if (SKIP_GRADES.has(last)) return;
+
+    let grade = null;
+    if (/^[ABCDF][+\-]?$/.test(last)) {
+      grade = last;
+    } else if (/^\d{1,3}(\.\d+)?$/.test(last)) {
+      const n = parseFloat(last);
+      if (n >= 30 && n <= 100) grade = String(n);
+    }
+    if (!grade) return;
+
+    // Title: text between code and units (for display only)
+    let title = '';
+    if (unitMatch) {
+      title = text.slice(cm.index + cm[0].length, text.indexOf(unitMatch[0])).trim();
+    }
+    const displayCode = title ? `${code} – ${title.slice(0, 40)}` : code;
+
+    newRows.push({
+      year: currentYear,
+      code: displayCode,
+      weight: String(weight),
+      grade,
     });
+  });
 
-    if (newRows.length > 0) {
-      if(state.rows.length === 0 || confirm(`Found ${newRows.length} courses. Replace current list?`)) {
-        state.rows = newRows.map(r => ({ id: newId(), ...r }));
-        renderRows();
-        setStatus(`Successfully imported ${newRows.length} graded courses.`, 'ok');
-      }
-    } else {
-      setStatus('No valid course rows detected.', 'err');
+  if (!newRows.length) {
+    setStatus('No valid course rows detected. Try entering courses manually.', 'err');
+    return;
+  }
+
+  if (state.rows.length) {
+    if (!confirm(`Replace ${state.rows.length} existing course(s) with ${newRows.length} parsed from PDF?`)) {
+      setStatus('Import cancelled.', '');
+      return;
     }
   }
 
-  function setStatus(msg, type) {
-    const el = document.getElementById('parseStatus');
-    el.innerText = msg;
-    el.className = 'status ' + type;
-    setTimeout(() => el.style.display = 'none', 4000);
-  }
+  state.rows = newRows.map(r => ({ id: newId(), ...r }));
+  renderRows();
+  setStatus(`Imported ${newRows.length} courses. Review and edit as needed.`, 'ok');
+}
 
-  window.onload = init;
+function setStatus(msg, type) {
+  const el = document.getElementById('parseStatus');
+  el.textContent = msg;
+  el.className = 'status ' + type;
+  // Auto-hide after 6s (unless it's an error)
+  if (type === 'ok') setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+window.onload = init;
 </script>
-
 </body>
 </html>
