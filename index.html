@@ -871,176 +871,291 @@ function detectInstitution(hay) {
   return null;
 }
 
-// Skip-grades: non-numeric grades that don't count toward GPA
-const SKIP_GRADES = new Set(['COM','MT','NC','T','P','CR','IP','INC','W','WD','AUD','PASS','FAIL','S','U','DNW','FTC','NMR','UR']);
+// ============================================================
+// TRANSCRIPT PARSERS — per-university modes
+// Each parser only uses patterns relevant to its format.
+// ============================================================
 
-// Header lines that should never be parsed as course rows
-const HEADER_RE = /\b(Term Totals|Cumulative|Transfer Credit|Term GPA|Cumulative GPA|Page \d|Attm.\/Earned|Total Points|GPA Units|Career Record|Transcript valid|Print Date|Issued To|Engineering Work Term|Work Term Details|Company:|Location:|Position\s*:|Start Date|End Date|Program:|Plan:|Term Honours:|Academic Standing|unofficial|Transfer Totals|Form Of Study|Attempted\s+Earned|In GPA|Cumulative Totals|Course\s+Description|Level:)\b/i;
-
-// Term header patterns
-// McMaster: "--- 2023 Fall ---"
-const TERM_MAC_RE = /---\s*(\d{4})\s+(Fall|Winter|Spring(?:\/Summer)?|Summer)\s*---/i;
-// Waterloo / generic: "Fall 2023" or "Winter 2024" (standalone line or near-standalone)
-const TERM_UW_RE  = /^\s*(Fall|Winter|Spring)\s+(\d{4})\s*$/i;
-
-// Waterloo level line: "Level: 2A" → extract the number as academic year
-const LEVEL_RE = /Level:\s*(\d)[AB]/i;
-
-// Course code pattern: 2–10 uppercase letters + space + digit followed by 1–5 alphanum
+// ── Shared constants ──
+const SKIP_GRADES = new Set(['COM','MT','NC','NG','T','P','CR','IP','INC','W','WD','AUD','PASS','FAIL','S','U','DNW','FTC','NMR','UR']);
 const CODE_RE = /\b([A-Z]{2,10})\s+(\d[A-Z0-9]{1,5})\b/;
 
-function extractCourses(lines) {
-  const newRows = [];
-
-  // Term → academic year tracker (Fall 2021 + Winter 2022 = Year 1, etc.)
-  let yearCounter = 0;
-  let currentYear = '';
-  const fallToAcademic = {};
-
-  // Try to consume a term header from a line. Returns true if matched.
-  function consumeTermHeader(text) {
-    // McMaster format: --- 2023 Fall ---
-    let m = text.match(TERM_MAC_RE);
-    if (m) {
-      const cal = parseInt(m[1], 10);
-      const season = m[2].toLowerCase();
-      if (season.startsWith('fall')) {
-        yearCounter++;
-        fallToAcademic[cal] = yearCounter;
-        currentYear = String(yearCounter);
-      } else if (season.startsWith('winter')) {
-        currentYear = String(fallToAcademic[cal - 1] || yearCounter || 1);
-      } else {
-        currentYear = String(fallToAcademic[cal - 1] || fallToAcademic[cal] || yearCounter || '');
-      }
-      return true;
-    }
-
-    // Waterloo / generic format: "Fall 2023"
-    m = text.match(TERM_UW_RE);
-    if (m) {
-      const season = m[1].toLowerCase();
-      const cal = parseInt(m[2], 10);
-      if (season === 'fall') {
-        yearCounter++;
-        fallToAcademic[cal] = yearCounter;
-        currentYear = String(yearCounter);
-      } else if (season === 'winter') {
-        currentYear = String(fallToAcademic[cal - 1] || yearCounter || 1);
-      } else {
-        currentYear = String(fallToAcademic[cal - 1] || fallToAcademic[cal] || yearCounter || '');
-      }
-      return true;
-    }
-
-    // Waterloo level line: "Level: 2A" → use the number as year
-    m = text.match(LEVEL_RE);
-    if (m) {
-      currentYear = m[1];
-      return true;
-    }
-
-    return false;
+// Extract grade from the last token of a string. Returns grade string or null.
+function extractGrade(text) {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (!tokens.length) return null;
+  const last = tokens[tokens.length - 1].replace(/%$/, '').toUpperCase();
+  if (SKIP_GRADES.has(last)) return null;
+  if (/^[ABCDF][+\-]?$/.test(last)) return last;
+  if (/^\d{1,3}(\.\d+)?$/.test(last)) {
+    const n = parseFloat(last);
+    if (n >= 30 && n <= 100) return String(n);
   }
+  return null;
+}
+
+// ── McMaster parser ──
+function parseMcMaster(lines) {
+  const TERM_RE  = /---\s*(\d{4})\s+(Fall|Winter|Spring(?:\/Summer)?|Summer)\s*---/i;
+  const SKIP_RE  = /\b(Term Totals|Cumulative|Transfer Credit|Term GPA|Page \d|Attm.\/Earned|Total Points|GPA Units|Career Record|Transcript valid|Print Date|Issued To|Engineering Work Term|Work Term Details|Company:|Location:|Position\s*:|Start Date|End Date|Program:|Plan:|Term Honours:|Academic Standing|unofficial|Transfer Totals)\b/i;
+
+  let yearCounter = 0, currentYear = '';
+  const fallMap = {};
+  const rows = [];
 
   lines.forEach(text => {
-    // Track term headers
-    if (consumeTermHeader(text)) return;
+    // Term header: --- 2021 Fall ---
+    const tm = text.match(TERM_RE);
+    if (tm) {
+      const cal = parseInt(tm[1], 10);
+      const season = tm[2].toLowerCase();
+      if (season.startsWith('fall')) {
+        yearCounter++;
+        fallMap[cal] = yearCounter;
+        currentYear = String(yearCounter);
+      } else if (season.startsWith('winter')) {
+        currentYear = String(fallMap[cal - 1] || yearCounter || 1);
+      } else {
+        currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
+      }
+      return;
+    }
 
-    // Skip header/meta lines
-    if (HEADER_RE.test(text)) return;
+    if (SKIP_RE.test(text)) return;
 
-    // Try to match a course code
     const cm = text.match(CODE_RE);
     if (!cm) return;
     const code = `${cm[1]} ${cm[2]}`;
-    let rest = text.slice(cm.index + cm[0].length).trim();
-    if (!rest) return;
+    const rest = text.slice(cm.index + cm[0].length).trim();
 
-    // ── WEIGHT DETECTION ──
+    // McMaster units: X.XX/X.XX
+    const um = rest.match(/(\d+(?:\.\d{1,2})?)\s*\/\s*(\d+(?:\.\d{1,2})?)/);
+    if (!um) return; // McMaster courses always have this pattern
+    const units = parseFloat(um[1]);
     let weight = 1;
-    let titleEnd = rest.length; // where the title text ends
+    if (units >= 5) weight = 2;
+    else if (units >= 2) weight = 1;
+    else if (units >= 0.9) weight = 2;
+    else if (units >= 0.4) weight = 1;
 
-    // Strategy A: McMaster-style X.XX/X.XX (e.g. "3.00/3.00")
-    const unitSlash = rest.match(/(\d+(?:\.\d{1,2})?)\s*\/\s*(\d+(?:\.\d{1,2})?)/);
-    if (unitSlash) {
-      const units = parseFloat(unitSlash[1]);
-      if (units >= 5) weight = 2;          // McMaster 5–6 unit / full year
-      else if (units >= 2) weight = 1;     // McMaster 3–4 unit / half
-      else if (units >= 0.9) weight = 2;   // UofT 1.0 credit
-      else if (units >= 0.4) weight = 1;   // UofT 0.5 credit
-      titleEnd = unitSlash.index;
-      rest = rest.slice(unitSlash.index + unitSlash[0].length).trim();
-    } else {
-      // Strategy B: Waterloo-style standalone credit columns (e.g. "0.50 0.50 74")
-      // Find the first decimal number that looks like a credit value in the tail of the line.
-      // Waterloo lines look like: "Description text 0.50 0.50 74"
-      // We scan tokens from the end backwards: last = grade, then credit values.
-      const allTokens = rest.split(/\s+/);
-      // Find where the numeric tail starts (credit + grade columns)
-      let numStart = allTokens.length;
-      for (let i = allTokens.length - 1; i >= 0; i--) {
-        if (/^\d+(\.\d+)?%?$/.test(allTokens[i])) { numStart = i; }
-        else break;
-      }
-      // The numeric tail tokens (e.g. ["0.50", "0.50", "74"])
-      const numTail = allTokens.slice(numStart);
-      if (numTail.length >= 2) {
-        // First numeric token in the tail is typically "Attempted" credits
-        const credit = parseFloat(numTail[0]);
-        if (credit >= 0.9 && credit <= 1.1) weight = 2;       // 1.00 credit = full year
-        else if (credit >= 0.4 && credit <= 0.6) weight = 1;  // 0.50 credit = half year
-        else if (credit >= 0.2 && credit <= 0.3) weight = 1;  // 0.25 credit = quarter (treat as half)
-      }
-      // Title is everything before the numeric tail
-      titleEnd = allTokens.slice(0, numStart).join(' ').length;
-      rest = numTail.join(' ');
-    }
-
-    // ── GRADE: last token ──
-    const tokens = rest.split(/\s+/).filter(Boolean);
-    if (!tokens.length) return;
-    const last = tokens[tokens.length - 1].replace(/%$/, '').toUpperCase();
-    if (SKIP_GRADES.has(last)) return;
-
-    let grade = null;
-    if (/^[ABCDF][+\-]?$/.test(last)) {
-      grade = last;
-    } else if (/^\d{1,3}(\.\d+)?$/.test(last)) {
-      const n = parseFloat(last);
-      if (n >= 30 && n <= 100) grade = String(n);
-    }
+    // Grade is the last token after the units
+    const afterUnits = rest.slice(um.index + um[0].length).trim();
+    const grade = extractGrade(afterUnits);
     if (!grade) return;
 
-    // ── TITLE (for display) ──
-    const rawRest = text.slice(cm.index + cm[0].length).trim();
-    let title = rawRest.slice(0, titleEnd).trim();
-    if (title.length > 45) title = title.slice(0, 45).trim();
-    const displayCode = title ? `${code} – ${title}` : code;
+    // Title: text between code and units
+    let title = rest.slice(0, um.index).trim();
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
 
-    newRows.push({
-      year: currentYear,
-      code: displayCode,
-      weight: String(weight),
-      grade,
-    });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
   });
 
-  if (!newRows.length) {
+  return rows;
+}
+
+// ── Waterloo parser ──
+function parseWaterloo(lines) {
+  const TERM_RE  = /^\s*(Fall|Winter|Spring)\s+(\d{4})\s*$/i;
+  const LEVEL_RE = /Level:\s*(\d)[AB]/i;
+  const SKIP_RE  = /\b(Term GPA|Cumulative GPA|Cumulative Totals|Term Totals|Form Of Study|Attempted\s+Earned|In GPA|Course\s+Description|Level:|Program:|Page \d|Print Date|Transcript|University of Waterloo)\b/i;
+
+  let yearCounter = 0, currentYear = '';
+  const fallMap = {};
+  const rows = [];
+
+  lines.forEach(text => {
+    // Term header: "Fall 2023"
+    const tm = text.match(TERM_RE);
+    if (tm) {
+      const season = tm[1].toLowerCase();
+      const cal = parseInt(tm[2], 10);
+      if (season === 'fall') {
+        yearCounter++;
+        fallMap[cal] = yearCounter;
+        currentYear = String(yearCounter);
+      } else if (season === 'winter') {
+        currentYear = String(fallMap[cal - 1] || yearCounter || 1);
+      } else {
+        currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
+      }
+      return;
+    }
+
+    // Level line: "Level: 2A" → year = 2
+    const lm = text.match(LEVEL_RE);
+    if (lm) { currentYear = lm[1]; return; }
+
+    if (SKIP_RE.test(text)) return;
+
+    const cm = text.match(CODE_RE);
+    if (!cm) return;
+    const code = `${cm[1]} ${cm[2]}`;
+    const rest = text.slice(cm.index + cm[0].length).trim();
+    if (!rest) return;
+
+    // Waterloo format: "Description text 0.50 0.50 74"
+    // Credits always have decimals (0.50, 0.25, 1.00). Bare integers are
+    // either grades or part of the title (e.g. "Linear Algebra 1").
+    // Strategy: find the grade (last integer 30-100), then look for
+    // decimal credit values (X.XX) immediately before it.
+    const allTokens = rest.split(/\s+/);
+
+    // Grade: last token
+    const grade = extractGrade(allTokens[allTokens.length - 1]);
+    if (!grade) return;
+
+    // Scan backwards from the second-to-last token for decimal credit values.
+    // Waterloo lines have: [title...] [attempted] [earned] [grade]
+    // Both attempted and earned are decimals like 0.50.
+    let creditIdx = allTokens.length - 1; // start just before grade
+    for (let i = allTokens.length - 2; i >= 0; i--) {
+      if (/^\d+\.\d{2}$/.test(allTokens[i])) { creditIdx = i; }
+      else break;
+    }
+
+    // Weight from the first credit token (Attempted)
+    let weight = 1;
+    if (creditIdx < allTokens.length - 1) {
+      const credit = parseFloat(allTokens[creditIdx]);
+      if (credit >= 0.9 && credit <= 1.1) weight = 2;       // 1.00 = full year
+      else if (credit >= 0.4 && credit <= 0.6) weight = 1;  // 0.50 = half
+      else if (credit >= 0.2 && credit <= 0.3) weight = 1;  // 0.25 = quarter
+    }
+
+    // Title: everything before the first credit token
+    const titleTokens = allTokens.slice(0, creditIdx);
+
+    let title = titleTokens.join(' ');
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
+
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+  });
+
+  return rows;
+}
+
+// ── Generic parser (fallback) ──
+// Tries all strategies — used when institution isn't detected.
+function parseGeneric(lines) {
+  const TERM_MAC_RE = /---\s*(\d{4})\s+(Fall|Winter|Spring(?:\/Summer)?|Summer)\s*---/i;
+  const TERM_UW_RE  = /^\s*(Fall|Winter|Spring)\s+(\d{4})\s*$/i;
+  const LEVEL_RE    = /Level:\s*(\d)[AB]/i;
+  const SKIP_RE     = /\b(Term Totals|Cumulative|Transfer Credit|Term GPA|Cumulative GPA|Page \d|Attm.\/Earned|Total Points|GPA Units|Career Record|Transcript valid|Print Date|Issued To|Engineering Work Term|Work Term Details|Company:|Location:|Position\s*:|Start Date|End Date|Program:|Plan:|Term Honours:|Academic Standing|unofficial|Transfer Totals|Form Of Study|Attempted\s+Earned|In GPA|Cumulative Totals|Course\s+Description|Level:)\b/i;
+
+  let yearCounter = 0, currentYear = '';
+  const fallMap = {};
+  const rows = [];
+
+  lines.forEach(text => {
+    // Try both term header formats
+    let m = text.match(TERM_MAC_RE);
+    if (!m) m = text.match(TERM_UW_RE);
+    if (m) {
+      // Normalize: MAC gives [_, year, season], UW gives [_, season, year]
+      const parts = m[0].includes('---')
+        ? { season: m[2].toLowerCase(), cal: parseInt(m[1], 10) }
+        : { season: m[1].toLowerCase(), cal: parseInt(m[2], 10) };
+      if (parts.season.startsWith('fall')) {
+        yearCounter++;
+        fallMap[parts.cal] = yearCounter;
+        currentYear = String(yearCounter);
+      } else if (parts.season.startsWith('winter')) {
+        currentYear = String(fallMap[parts.cal - 1] || yearCounter || 1);
+      } else {
+        currentYear = String(fallMap[parts.cal - 1] || fallMap[parts.cal] || yearCounter || '');
+      }
+      return;
+    }
+    const lm = text.match(LEVEL_RE);
+    if (lm) { currentYear = lm[1]; return; }
+
+    if (SKIP_RE.test(text)) return;
+
+    const cm = text.match(CODE_RE);
+    if (!cm) return;
+    const code = `${cm[1]} ${cm[2]}`;
+    const rest = text.slice(cm.index + cm[0].length).trim();
+    if (!rest) return;
+
+    let weight = 1;
+    let gradeSource = rest;
+    let titleEnd = rest.length;
+
+    // Try slash units first (McMaster / UofT)
+    const um = rest.match(/(\d+(?:\.\d{1,2})?)\s*\/\s*(\d+(?:\.\d{1,2})?)/);
+    if (um) {
+      const units = parseFloat(um[1]);
+      if (units >= 5) weight = 2;
+      else if (units >= 2) weight = 1;
+      else if (units >= 0.9) weight = 2;
+      else if (units >= 0.4) weight = 1;
+      titleEnd = um.index;
+      gradeSource = rest.slice(um.index + um[0].length).trim();
+    } else {
+      // Try standalone decimal credit columns (Waterloo-style: "text 0.50 0.50 74")
+      // Only match tokens with decimals (X.XX) as credits — bare integers like "1"
+      // in "Linear Algebra 1" are part of the title.
+      const allTokens = rest.split(/\s+/);
+      let creditIdx = allTokens.length;
+      for (let i = allTokens.length - 2; i >= 0; i--) {
+        if (/^\d+\.\d{2}$/.test(allTokens[i])) creditIdx = i;
+        else break;
+      }
+      if (creditIdx < allTokens.length - 1) {
+        const credit = parseFloat(allTokens[creditIdx]);
+        if (credit >= 0.9 && credit <= 1.1) weight = 2;
+        else if (credit >= 0.4 && credit <= 0.6) weight = 1;
+      }
+      titleEnd = allTokens.slice(0, creditIdx).join(' ').length;
+      gradeSource = allTokens.slice(creditIdx).join(' ');
+    }
+
+    const grade = extractGrade(gradeSource);
+    if (!grade) return;
+
+    let title = rest.slice(0, titleEnd).trim();
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
+
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+  });
+
+  return rows;
+}
+
+// ── Dispatcher ──
+function extractCourses(lines) {
+  // Detect institution from the full text
+  const haystack = lines.join(' ').toUpperCase();
+  const inst = detectInstitution(haystack);
+
+  let parsed;
+  if (inst === 'mcmaster') {
+    parsed = parseMcMaster(lines);
+  } else if (inst === 'waterloo') {
+    parsed = parseWaterloo(lines);
+  } else {
+    // For all other Ontario universities, try generic which handles both formats
+    parsed = parseGeneric(lines);
+  }
+
+  if (!parsed.length) {
     setStatus('No valid course rows detected. Try entering courses manually.', 'err');
     return;
   }
 
   if (state.rows.length) {
-    if (!confirm(`Replace ${state.rows.length} existing course(s) with ${newRows.length} parsed from PDF?`)) {
+    if (!confirm(`Replace ${state.rows.length} existing course(s) with ${parsed.length} parsed from PDF?`)) {
       setStatus('Import cancelled.', '');
       return;
     }
   }
 
-  state.rows = newRows.map(r => ({ id: newId(), ...r }));
+  state.rows = parsed.map(r => ({ id: newId(), ...r }));
   renderRows();
-  setStatus(`Imported ${newRows.length} courses. Review and edit as needed.`, 'ok');
+  setStatus(`Imported ${parsed.length} courses. Review and edit as needed.`, 'ok');
 }
 
 function setStatus(msg, type) {
