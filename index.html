@@ -92,6 +92,12 @@
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
   }
+  select:disabled {
+    background-color: #f1f5f9;
+    color: var(--text-muted);
+    cursor: default;
+    opacity: 0.7;
+  }
 
   /* ============ Dropzone ============ */
   .dropzone {
@@ -487,26 +493,26 @@ const SCALE_NAMES = {
 };
 
 const INSTITUTIONS = [
-  ['mcmaster',   'McMaster University',            ['mac_letter', 'percent', 'mac_12'], 'mac_letter'],
-  ['toronto',    'University of Toronto',          ['uoft_letter', 'percent'],           'uoft_letter'],
-  ['queens',     "Queen's University",             ['percent', 'std_letter'],            'percent'],
-  ['western',    'Western University',             ['percent', 'std_letter'],            'percent'],
-  ['waterloo',   'University of Waterloo',         ['percent', 'std_letter'],            'percent'],
-  ['guelph',     'University of Guelph',           ['percent', 'std_letter'],            'percent'],
-  ['ottawa',     'University of Ottawa',           ['percent', 'std_letter'],            'percent'],
-  ['york',       'York University',                ['york_9', 'std_letter', 'percent'],  'york_9'],
-  ['carleton',   'Carleton University',            ['percent', 'std_letter'],            'percent'],
-  ['laurier',    'Wilfrid Laurier University',     ['percent', 'std_letter'],            'percent'],
-  ['brock',      'Brock University',               ['percent', 'std_letter'],            'percent'],
-  ['trent',      'Trent University',               ['percent', 'std_letter'],            'percent'],
-  ['windsor',    'University of Windsor',          ['percent', 'std_letter'],            'percent'],
-  ['tmu',        'Toronto Metropolitan (Ryerson)', ['std_letter', 'percent'],            'std_letter'],
-  ['lakehead',   'Lakehead University',            ['percent', 'std_letter'],            'percent'],
-  ['nipissing',  'Nipissing University',           ['percent', 'std_letter'],            'percent'],
-  ['laurentian', 'Laurentian University',          ['percent', 'std_letter'],            'percent'],
-  ['ocad',       'OCAD University',                ['percent', 'std_letter'],            'percent'],
-  ['ubc',        'University of British Columbia',  ['percent', 'std_letter'],            'percent'],
-  ['generic',    'Other / Generic',                ['std_letter', 'percent'],            'std_letter'],
+  ['mcmaster',   'McMaster University',            ['mac_letter'],            'mac_letter'],
+  ['toronto',    'University of Toronto',          ['uoft_letter'],           'uoft_letter'],
+  ['queens',     "Queen's University",             ['percent'],               'percent'],
+  ['western',    'Western University',             ['percent'],               'percent'],
+  ['waterloo',   'University of Waterloo',         ['percent'],               'percent'],
+  ['guelph',     'University of Guelph',           ['percent'],               'percent'],
+  ['ottawa',     'University of Ottawa',           ['percent'],               'percent'],
+  ['york',       'York University',                ['york_9'],                'york_9'],
+  ['carleton',   'Carleton University',            ['percent'],               'percent'],
+  ['laurier',    'Wilfrid Laurier University',     ['percent'],               'percent'],
+  ['brock',      'Brock University',               ['percent'],               'percent'],
+  ['trent',      'Trent University',               ['percent'],               'percent'],
+  ['windsor',    'University of Windsor',          ['percent'],               'percent'],
+  ['tmu',        'Toronto Metropolitan (Ryerson)', ['std_letter'],            'std_letter'],
+  ['lakehead',   'Lakehead University',            ['percent'],               'percent'],
+  ['nipissing',  'Nipissing University',           ['percent'],               'percent'],
+  ['laurentian', 'Laurentian University',          ['percent'],               'percent'],
+  ['ocad',       'OCAD University',                ['percent'],               'percent'],
+  ['ubc',        'University of British Columbia', ['percent'],               'percent'],
+  ['generic',    'Other / Generic',                ['std_letter', 'percent'], 'std_letter'],
 ];
 
 /* ============================================================
@@ -551,6 +557,8 @@ function buildScaleSelect() {
   inst[2].forEach(s => sel.add(new Option(SCALE_NAMES[s] || s, s)));
   if (!inst[2].includes(state.scale)) state.scale = inst[3];
   sel.value = state.scale;
+  // Lock the dropdown when only one scale exists for this university
+  sel.disabled = inst[2].length <= 1;
 }
 
 function renderScalePreview() {
