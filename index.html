@@ -500,11 +500,12 @@ const INSTITUTIONS = [
   ['brock',      'Brock University',               ['percent', 'std_letter'],            'percent'],
   ['trent',      'Trent University',               ['percent', 'std_letter'],            'percent'],
   ['windsor',    'University of Windsor',          ['percent', 'std_letter'],            'percent'],
-  ['tmu',        'Toronto Metropolitan (Ryerson)', ['percent', 'std_letter'],            'percent'],
+  ['tmu',        'Toronto Metropolitan (Ryerson)', ['std_letter', 'percent'],            'std_letter'],
   ['lakehead',   'Lakehead University',            ['percent', 'std_letter'],            'percent'],
   ['nipissing',  'Nipissing University',           ['percent', 'std_letter'],            'percent'],
   ['laurentian', 'Laurentian University',          ['percent', 'std_letter'],            'percent'],
   ['ocad',       'OCAD University',                ['percent', 'std_letter'],            'percent'],
+  ['ubc',        'University of British Columbia',  ['percent', 'std_letter'],            'percent'],
   ['generic',    'Other / Generic',                ['std_letter', 'percent'],            'std_letter'],
 ];
 
@@ -866,6 +867,7 @@ function detectInstitution(hay) {
     [/TRENT UNIVERSITY/, 'trent'],
     [/UNIVERSITY OF WINDSOR/, 'windsor'],
     [/TORONTO METROPOLITAN|RYERSON UNIVERSITY/, 'tmu'],
+    [/UNIVERSITY OF BRITISH COLUMBIA|UBC VANCOUVER/, 'ubc'],
     [/LAKEHEAD UNIVERSITY/, 'lakehead'],
     [/NIPISSING UNIVERSITY/, 'nipissing'],
     [/LAURENTIAN UNIVERSITY/, 'laurentian'],
@@ -1040,6 +1042,136 @@ function parseWaterloo(lines) {
   return rows;
 }
 
+// ── TMU (Toronto Metropolitan University) parser ──
+// Format: "CMTH 501 Numerical Analysis I 1.000 B 3.000"
+// Credit has 3 decimal places, letter grade, then grade points.
+// Term headers: "Spring/Summer 2024", "Fall 2024", "Winter 2025"
+function parseTMU(lines) {
+  const TERM_RE  = /^\s*(Fall|Winter|Spring\/Summer|Spring|Summer)\s+(\d{4})\s*$/i;
+  const SKIP_RE  = /\b(Term GPA|Transfer Term|Combined GPA|Cum GPA|Cum Totals|End of Transcript|Program:|Academic Program|Active in Program|Continuing Education|Print Date|Name:|Student ID|OEN:|Birthdate|Non Certificate|Beginning of|Course\s+Description|Credit\s+Earned|Earned\s+Points|Page \d|TORONTO METROPOLITAN)\b/i;
+  // TMU tail pattern: credit(X.000) letter_grade grade_points(X.000)
+  const TAIL_RE  = /(\d+\.\d{3})\s+([ABCDF][+\-]?)\s+(\d+\.\d{3})\s*$/;
+
+  let yearCounter = 0, currentYear = '';
+  const fallMap = {};
+  const rows = [];
+
+  lines.forEach(text => {
+    const tm = text.match(TERM_RE);
+    if (tm) {
+      const season = tm[1].toLowerCase();
+      const cal = parseInt(tm[2], 10);
+      if (season === 'fall') {
+        yearCounter++;
+        fallMap[cal] = yearCounter;
+        currentYear = String(yearCounter);
+      } else if (season === 'winter') {
+        currentYear = String(fallMap[cal - 1] || yearCounter || 1);
+      } else {
+        // Spring/Summer belongs to the academic year of the preceding Fall
+        currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
+      }
+      return;
+    }
+
+    if (SKIP_RE.test(text)) return;
+
+    const cm = text.match(CODE_RE);
+    if (!cm) return;
+    const code = `${cm[1]} ${cm[2]}`;
+    const rest = text.slice(cm.index + cm[0].length).trim();
+
+    // Match the tail: "1.000 B 3.000"
+    const tail = rest.match(TAIL_RE);
+    if (!tail) return;
+
+    const credit = parseFloat(tail[1]);
+    const grade = tail[2];
+    // TMU credit: 1.000 = full year (weight 2), 0.500 = half (weight 1)
+    let weight = 1;
+    if (credit >= 0.9) weight = 2;
+    else if (credit >= 0.4) weight = 1;
+
+    if (SKIP_GRADES.has(grade.toUpperCase())) return;
+
+    let title = rest.slice(0, tail.index).trim();
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
+
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+  });
+
+  return rows;
+}
+
+// ── UBC (University of British Columbia) parser ──
+// Format: "1 ANTH_V 100A (3.0) Introduction to Cultural Anthropology 70 B- 3.0 96 75"
+// Codes have _V suffix, credit in parens, % and letter grade, class stats at end.
+// Session headers: "2020-21 Winter Session", "2021 Summer Session"
+// Year lines: "Bachelor of Arts (UBC Vancouver) - Year 1"
+function parseUBC(lines) {
+  const SESSION_RE = /^(\d{4}(?:-\d{2})?)\s+(Winter|Summer)\s+Session$/i;
+  const YEAR_RE    = /- Year\s+(\d)/i;
+  const SKIP_RE    = /\b(Cumulative Totals|Credits Earned|End of Record|Transfer Credits|Credits Awarded|UBC Credentials|Credential:|Program\(s\)|Honours\/Awards|Granted:|Note:|UNOFFICIAL|TRANSCRIPT|ENROLMENT|Page:|Surname:|Given Name:|Student Number:|Date of Birth:|Date Printed:|Credit\s+%|Term\s+Course\s+Value)\b/i;
+  // UBC course code: DEPT_V NUMBER (e.g., ANTH_V 100A, PSYC_V 309A)
+  const UBC_CODE_RE = /([A-Z]+_V)\s+(\d+[A-Z]?)/;
+  // Credit in parens: (3.0) or (6.0)
+  const CREDIT_RE = /\((\d+\.\d)\)/;
+
+  let currentYear = '';
+  const rows = [];
+
+  lines.forEach(text => {
+    // Year from "Bachelor of Arts (UBC Vancouver) - Year 1"
+    const ym = text.match(YEAR_RE);
+    if (ym) { currentYear = ym[1]; return; }
+
+    // Session header (skip, year comes from the Year line)
+    if (SESSION_RE.test(text)) return;
+    if (SKIP_RE.test(text)) return;
+
+    // Strip leading term number: "1 ", "2 ", "1-2 "
+    let line = text.replace(/^\s*\d(?:-\d)?\s+/, '');
+
+    const cm = line.match(UBC_CODE_RE);
+    if (!cm) return;
+    const rawCode = `${cm[1]} ${cm[2]}`;
+    // Clean display code: strip _V for readability
+    const code = rawCode.replace(/_V/, '');
+    const afterCode = line.slice(cm.index + cm[0].length).trim();
+
+    // Extract credit from (X.0)
+    const cr = afterCode.match(CREDIT_RE);
+    if (!cr) return;
+    const creditVal = parseFloat(cr[1]);
+    let weight = creditVal >= 5.5 ? 2 : 1; // (6.0) = full year, (3.0) = half
+
+    const afterCredit = afterCode.slice(cr.index + cr[0].length).trim();
+    if (!afterCredit) return;
+
+    // UBC lines end with: %grade letter_grade credit_recd class_size class_avg
+    // e.g., "Introduction to Cultural Anthropology 70 B- 3.0 96 75"
+    // But co-op lines end with just: "P 3.0" or "W"
+    // Look for the % grade + letter grade pair embedded in the tail.
+    // Pattern: a 2-3 digit number followed by a letter grade (A+, B-, etc.)
+    const gradeMatch = afterCredit.match(/(\d{2,3})\s+([ABCDF][+\-]?)\s+\d+\.\d/);
+    if (!gradeMatch) return; // co-op (P), withdrawal (W), or no grade yet
+
+    const pctGrade = gradeMatch[1]; // use percentage for OLSAS
+    const n = parseFloat(pctGrade);
+    if (n < 30 || n > 100) return;
+
+    // Title: text before the % grade
+    let title = afterCredit.slice(0, gradeMatch.index).trim();
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
+
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade: String(n) });
+  });
+
+  return rows;
+}
+
 // ── Generic parser (fallback) ──
 // Tries all strategies — used when institution isn't detected.
 function parseGeneric(lines) {
@@ -1140,8 +1272,12 @@ function extractCourses(lines) {
     parsed = parseMcMaster(lines);
   } else if (inst === 'waterloo') {
     parsed = parseWaterloo(lines);
+  } else if (inst === 'tmu') {
+    parsed = parseTMU(lines);
+  } else if (inst === 'ubc') {
+    parsed = parseUBC(lines);
   } else {
-    // For all other Ontario universities, try generic which handles both formats
+    // For all other universities, try generic which handles both formats
     parsed = parseGeneric(lines);
   }
 
