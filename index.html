@@ -503,7 +503,7 @@ const INSTITUTIONS = [
   ['western',    'Western University',             ['percent'],               'percent'],
   ['waterloo',   'University of Waterloo',         ['percent'],               'percent'],
   ['guelph',     'University of Guelph',           ['percent'],               'percent'],
-  ['ottawa',     'University of Ottawa',           ['percent'],               'percent'],
+  ['ottawa',     'University of Ottawa',           ['std_letter'],            'std_letter'],
   ['york',       'York University',                ['york_9'],                'york_9'],
   ['carleton',   'Carleton University',            ['percent'],               'percent'],
   ['laurier',    'Wilfrid Laurier University',     ['percent'],               'percent'],
@@ -520,7 +520,7 @@ const INSTITUTIONS = [
 ];
 
 // Universities with dedicated transcript parsers
-const SUPPORTED_PARSERS = new Set(['mcmaster', 'waterloo', 'tmu', 'ubc', 'western']);
+const SUPPORTED_PARSERS = new Set(['mcmaster', 'waterloo', 'tmu', 'ubc', 'western', 'ottawa']);
 
 /* ============================================================
    STATE
@@ -908,7 +908,7 @@ function detectInstitution(hay) {
 // ============================================================
 
 // ── Shared constants ──
-const SKIP_GRADES = new Set(['COM','MT','NC','NG','T','P','CR','IP','IPR','INC','W','WD','WDN','AUD','PASS','PAS','FAIL','S','U','DNW','FTC','NMR','UR']);
+const SKIP_GRADES = new Set(['COM','MT','NC','NG','T','P','CR','IP','IPR','INC','W','WD','WDN','AUD','PASS','PAS','FAIL','S','NS','U','DNW','FTC','NMR','UR','ABS','DR','EIN','DFR','CTN','AEC','SCO']);
 const CODE_RE = /\b([A-Z]{2,10})\s+(\d[A-Z0-9]{1,5})\b/;
 
 // Extract grade from the last token of a string. Returns grade string or null.
@@ -1287,6 +1287,79 @@ function parseWestern(lines) {
   return rows;
 }
 
+// ── University of Ottawa parser ──
+// Format: "CLA 2323 Greek Mythology C+ 3.00 6.53 269"
+// Tail: letter_grade earned(3.00|NC|CR) average(X.XX|N/A) size(NNN|N/A)
+// Term headers: "2022 Fall Term", "2023 Winter Term", "2023 Spring/Summer Term"
+// Special: S=satisfactory, E=fail(0.0), NC=no credit, CR=credited
+// Credits: 3.00 = half year (weight 1), 6.00 = full year (weight 2)
+function parseOttawa(lines) {
+  const TERM_RE  = /^\s*(\d{4})\s+(Fall|Winter|Spring\/Summer|Spring|Summer)\s+Term\s*$/i;
+  const SKIP_RE  = /\b(Unofficial Transcript|Name:|Student ID:|Print Date:|OEN:|Start of Transcript|End of Transcript|Honours Bachelor|Course\s+Description\s+Grade|Earned\s+GPA\s+Units|TGPA|CGPA|Academic standing|Repeated course|Scholarships|Page \d|uOttawa|TRANSFER CREDIT|LEGEND|GRADES|SYMBOLS|DEFINITION|OTHER SYMBOLS)\b/i;
+  // Tail regex: grade earned average size
+  const TAIL_RE  = /\b([ABCDEF][+\-]?)\s+([\d.]+|NC|CR)\s+([\d.]+|N\/A)\s+(\d+|N\/A)\s*$/;
+
+  let yearCounter = 0, currentYear = '';
+  const fallMap = {};
+  const rows = [];
+
+  lines.forEach(text => {
+    // Term header: "2022 Fall Term"
+    const tm = text.match(TERM_RE);
+    if (tm) {
+      const cal = parseInt(tm[1], 10);
+      const season = tm[2].toLowerCase();
+      if (season === 'fall') {
+        yearCounter++;
+        fallMap[cal] = yearCounter;
+        currentYear = String(yearCounter);
+      } else if (season === 'winter') {
+        currentYear = String(fallMap[cal - 1] || yearCounter || 1);
+      } else {
+        // Spring/Summer belongs to preceding academic year
+        currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
+      }
+      return;
+    }
+
+    if (SKIP_RE.test(text)) return;
+
+    const cm = text.match(CODE_RE);
+    if (!cm) return;
+    const code = `${cm[1]} ${cm[2]}`;
+    const rest = text.slice(cm.index + cm[0].length).trim();
+
+    // Match the tail: "C+ 3.00 6.53 269" or "E NC 5.85 41" or "A 3.00 N/A N/A"
+    const tail = rest.match(TAIL_RE);
+    if (!tail) return; // no grade (e.g., "N/A N/A" lines, or S CR N/A N/A)
+
+    const grade = tail[1];
+    const earned = tail[2]; // "3.00", "NC", "CR"
+
+    // Skip satisfactory/non-graded
+    if (SKIP_GRADES.has(grade.toUpperCase())) return;
+
+    // Weight from earned credits
+    let weight = 1;
+    if (earned !== 'NC' && earned !== 'CR') {
+      const credits = parseFloat(earned);
+      if (credits >= 5.5) weight = 2;      // 6.00 = full year
+      else if (credits >= 2.5) weight = 1; // 3.00 = half year
+    }
+    // For NC courses (failed, no credit), use the "Attempted" credits.
+    // Ottawa doesn't show attempted separately — all courses are 3.00 units, so weight = 1.
+
+    // Title: everything between course code and the tail
+    let title = rest.slice(0, tail.index).trim();
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
+
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+  });
+
+  return rows;
+}
+
 // ── Generic parser (fallback) ──
 // Tries all strategies — used when institution isn't detected.
 function parseGeneric(lines) {
@@ -1393,6 +1466,8 @@ function extractCourses(lines) {
     parsed = parseUBC(lines);
   } else if (inst === 'western') {
     parsed = parseWestern(lines);
+  } else if (inst === 'ottawa') {
+    parsed = parseOttawa(lines);
   } else {
     // For all other universities, try generic which handles both formats
     parsed = parseGeneric(lines);
