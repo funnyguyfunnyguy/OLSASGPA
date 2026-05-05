@@ -891,7 +891,7 @@ function detectInstitution(hay) {
 // ============================================================
 
 // ── Shared constants ──
-const SKIP_GRADES = new Set(['COM','MT','NC','NG','T','P','CR','IP','INC','W','WD','AUD','PASS','FAIL','S','U','DNW','FTC','NMR','UR']);
+const SKIP_GRADES = new Set(['COM','MT','NC','NG','T','P','CR','IP','IPR','INC','W','WD','WDN','AUD','PASS','PAS','FAIL','S','U','DNW','FTC','NMR','UR']);
 const CODE_RE = /\b([A-Z]{2,10})\s+(\d[A-Z0-9]{1,5})\b/;
 
 // Extract grade from the last token of a string. Returns grade string or null.
@@ -1180,6 +1180,96 @@ function parseUBC(lines) {
   return rows;
 }
 
+// ── Western University parser ──
+// Format: "BUSINESS 1299E BUSINESS FOR ENGINEERS 1.00 1.00 082"
+// Credits: 0.50 = half (weight 1), 1.00 = full (weight 2)
+// Grades: 3-digit percentages with leading zeros (082, 066)
+// Term headers: "2023 Fall/Winter", "2025 Summer"
+// Special: WDN (withdrawal), PAS (pass), IPR (in progress), F (fail)
+// "Repeated: Repeated, No Credit" line after failed courses
+function parseWestern(lines) {
+  // Western uses "2023 Fall/Winter" or "2025 Summer"
+  const TERM_RE  = /^\s*(\d{4})\s+(Fall\/Winter|Fall|Winter|Summer)\s*$/i;
+  const SKIP_RE  = /\b(Western University|Student Name:|Print Date:|Basis of Admission|Beginning of|End of|Program:|Plan:|Course\s+Description\s+Attempted|Attempted\s+Earned\s+Grade|Scholarships|Page \d|Repeated:|Ontario Secondary|Faculty of Engineering)\b/i;
+
+  let yearCounter = 0, currentYear = '';
+  const rows = [];
+
+  lines.forEach(text => {
+    // Term header: "2023 Fall/Winter"
+    const tm = text.match(TERM_RE);
+    if (tm) {
+      const season = tm[2].toLowerCase();
+      // Fall/Winter = a new academic year. Summer belongs to the preceding year.
+      if (season === 'fall/winter' || season === 'fall') {
+        yearCounter++;
+        currentYear = String(yearCounter);
+      } else if (season === 'summer') {
+        // Summer stays in current year
+      }
+      return;
+    }
+
+    if (SKIP_RE.test(text)) return;
+
+    const cm = text.match(CODE_RE);
+    if (!cm) return;
+    const code = `${cm[1]} ${cm[2]}`;
+    const rest = text.slice(cm.index + cm[0].length).trim();
+    if (!rest) return;
+
+    // Western tail: "DESCRIPTION TEXT 0.50 0.50 082" or "DESCRIPTION 0.50 0.00 F" or "DESCRIPTION 0.50 0.00" (no grade)
+    // Scan from end for numeric tail with decimal credits
+    const allTokens = rest.split(/\s+/);
+
+    // Last token is the grade (3-digit pct, letter, or skip-grade)
+    const lastToken = allTokens[allTokens.length - 1].toUpperCase();
+
+    // Check if last token is a skip grade
+    if (SKIP_GRADES.has(lastToken)) return;
+
+    // Check for no-grade line (e.g. "MICROPROCESSORS & MICROCOMP 0.50 0.00")
+    // where last token is a decimal credit, meaning no grade was assigned yet
+    if (/^\d+\.\d{2}$/.test(lastToken)) return;
+
+    let grade = null;
+    // Western uses 3-digit grades with leading zeros: 082, 066, 050
+    if (/^0?\d{2,3}$/.test(lastToken)) {
+      const n = parseInt(lastToken, 10);
+      if (n >= 0 && n <= 100) grade = String(n);
+    }
+    // Also accept F as a grade (fail = 0.0 OLSAS)
+    if (lastToken === 'F') grade = 'F';
+
+    if (!grade) return;
+
+    // Credits: find the two decimal tokens before the grade
+    // Pattern: "DESCRIPTION 0.50 0.50 082"
+    let creditIdx = allTokens.length - 1;
+    for (let i = allTokens.length - 2; i >= 0; i--) {
+      if (/^\d+\.\d{2}$/.test(allTokens[i])) creditIdx = i;
+      else break;
+    }
+
+    let weight = 1;
+    if (creditIdx < allTokens.length - 1) {
+      const credit = parseFloat(allTokens[creditIdx]);
+      if (credit >= 0.9) weight = 2;       // 1.00 = full year
+      else if (credit >= 0.4) weight = 1;  // 0.50 = half
+    }
+
+    // Title: everything before the credit columns
+    const titleTokens = allTokens.slice(0, creditIdx);
+    let title = titleTokens.join(' ');
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
+
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+  });
+
+  return rows;
+}
+
 // ── Generic parser (fallback) ──
 // Tries all strategies — used when institution isn't detected.
 function parseGeneric(lines) {
@@ -1284,6 +1374,8 @@ function extractCourses(lines) {
     parsed = parseTMU(lines);
   } else if (inst === 'ubc') {
     parsed = parseUBC(lines);
+  } else if (inst === 'western') {
+    parsed = parseWestern(lines);
   } else {
     // For all other universities, try generic which handles both formats
     parsed = parseGeneric(lines);
