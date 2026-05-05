@@ -361,12 +361,16 @@
         <div class="scale-preview" id="scalePreview"></div>
       </details>
     </div>
-    <div class="field">
+    <div class="field" id="importField">
       <label>Import Transcript</label>
       <div class="dropzone" id="drop">
         <div><strong>Click or Drop PDF</strong></div>
         <div class="small" id="dropFile">Parsed locally — nothing leaves your browser.</div>
         <input type="file" id="pdfInput" accept="application/pdf" />
+      </div>
+      <div id="noParser" style="display:none;padding:1rem;border:1px dashed var(--border);border-radius:6px;background:#f8fafc;color:var(--text-muted);font-size:0.85rem;text-align:center;">
+        <div style="margin-bottom:0.25rem;font-weight:600;color:var(--text-main);">PDF import not yet supported for this university.</div>
+        Use the manual course editor below to enter your grades.
       </div>
       <div id="parseStatus" class="status"></div>
     </div>
@@ -515,12 +519,22 @@ const INSTITUTIONS = [
   ['generic',    'Other / Generic',                ['std_letter', 'percent'], 'std_letter'],
 ];
 
+// Universities with dedicated transcript parsers
+const SUPPORTED_PARSERS = new Set(['mcmaster', 'waterloo', 'tmu', 'ubc', 'western']);
+
 /* ============================================================
    STATE
    ============================================================ */
 let state = { uni: 'mcmaster', scale: 'mac_letter', rows: [] };
 let idCounter = 1;
 const newId = () => 'r' + (idCounter++);
+
+// Show/hide dropzone based on whether the selected university has a parser
+function updateImportVisibility() {
+  const supported = SUPPORTED_PARSERS.has(state.uni);
+  document.getElementById('drop').style.display = supported ? '' : 'none';
+  document.getElementById('noParser').style.display = supported ? 'none' : '';
+}
 
 /* ============================================================
    UI: selectors + scale preview
@@ -531,11 +545,13 @@ function init() {
   uniSel.value = state.uni;
   buildScaleSelect();
   renderScalePreview();
+  updateImportVisibility();
 
   uniSel.addEventListener('change', e => {
     state.uni = e.target.value;
     buildScaleSelect();
     renderScalePreview();
+    updateImportVisibility();
     renderRows();
   });
   document.getElementById('scale').addEventListener('change', e => {
@@ -850,6 +866,7 @@ async function handlePDF(file) {
       document.getElementById('uni').value = detected;
       buildScaleSelect();
       renderScalePreview();
+      updateImportVisibility();
     }
 
     extractCourses(lines);
