@@ -152,7 +152,7 @@
   /* ============ Metrics ============ */
   .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
   }
   @media (max-width: 768px) { .metrics-grid { grid-template-columns: 1fr 1fr; } }
@@ -386,17 +386,12 @@
     <div class="metric">
       <div class="label">L2 · Last 20</div>
       <div class="val" id="outL2">—</div>
-      <div class="desc">Most recent 20 half-course units.</div>
+      <div class="desc">Most recent 20 half-course units (all terms).</div>
     </div>
     <div class="metric">
-      <div class="label">B3 · Best 3 Yrs</div>
-      <div class="val" id="outB3">—</div>
-      <div class="desc">Average of your 3 best years.</div>
-    </div>
-    <div class="metric">
-      <div class="label">L3 · Last 3 Yrs</div>
-      <div class="val" id="outL3">—</div>
-      <div class="desc">Average of your 3 most recent years.</div>
+      <div class="label">B2 · Best 2 Yrs</div>
+      <div class="val" id="outB2">—</div>
+      <div class="desc">Best 2 academic years (Fall/Winter only).</div>
     </div>
   </div>
 
@@ -425,7 +420,7 @@
   </div>
 
   <div class="note">
-    <strong>Disclaimer.</strong> This is an unofficial self-evaluation tool. Your real OLSAS GPA is calculated by OUAC using the institution-specific scale on your transcript — see <a href="https://www.ouac.on.ca/guide/olsas-gpa-calculations/" target="_blank" rel="noopener">ouac.on.ca</a>. L2/B3/L3 use common heuristics; each law school (Western, U of T, etc.) may compute them slightly differently. Weight: <strong>1</strong> = half-year (0.5 credit / 3-unit), <strong>2</strong> = full-year (1.0 credit / 6-unit).
+    <strong>Disclaimer.</strong> This is an unofficial self-evaluation tool. Your real OLSAS GPA is calculated by OUAC using the institution-specific scale on your transcript — see <a href="https://www.ouac.on.ca/guide/olsas-gpa-calculations/" target="_blank" rel="noopener">ouac.on.ca</a>. L2 and B2 use common heuristics; each law school may compute them slightly differently. B2 only includes Fall/Winter courses. Weight: <strong>1</strong> = half-year (0.5 credit / 3-unit), <strong>2</strong> = full-year (1.0 credit / 6-unit).
   </div>
 
 </div>
@@ -516,11 +511,12 @@ const INSTITUTIONS = [
   ['laurentian', 'Laurentian University',          ['percent'],               'percent'],
   ['ocad',       'OCAD University',                ['percent'],               'percent'],
   ['ubc',        'University of British Columbia', ['percent'],               'percent'],
+  ['otu',        'Ontario Tech University',       ['std_letter'],            'std_letter'],
   ['generic',    'Other / Generic',                ['std_letter', 'percent'], 'std_letter'],
 ];
 
 // Universities with dedicated transcript parsers
-const SUPPORTED_PARSERS = new Set(['mcmaster', 'waterloo', 'tmu', 'ubc', 'western', 'ottawa']);
+const SUPPORTED_PARSERS = new Set(['mcmaster', 'waterloo', 'tmu', 'ubc', 'western', 'ottawa', 'otu']);
 
 /* ============================================================
    STATE
@@ -668,6 +664,7 @@ window.addRow = function(prefill = {}) {
     code:   prefill.code   || '',
     weight: prefill.weight || '1',
     grade:  prefill.grade  || '',
+    fw:     prefill.fw !== undefined ? prefill.fw : true, // fall/winter flag
   });
   renderRows();
 };
@@ -725,22 +722,13 @@ function yearGroups(valid) {
     }));
 }
 
-function b3(valid) {
-  const yrs = yearGroups(valid);
+function b2(valid) {
+  // Filter to Fall/Winter courses only
+  const fwOnly = valid.filter(r => r.fw !== false);
+  const yrs = yearGroups(fwOnly);
   if (!yrs.length) return null;
-  const top = [...yrs].sort((a, b) => b.gpa - a.gpa).slice(0, 3);
+  const top = [...yrs].sort((a, b) => b.gpa - a.gpa).slice(0, 2);
   return top.reduce((s, y) => s + y.gpa, 0) / top.length;
-}
-
-function l3(valid) {
-  const yrs = yearGroups(valid);
-  if (!yrs.length) return null;
-  const sorted = [...yrs].sort((a, b) => {
-    const na = parseFloat(a.year), nb = parseFloat(b.year);
-    return (isFinite(na) && isFinite(nb)) ? na - nb : a.year.localeCompare(b.year);
-  });
-  const last = sorted.slice(-3);
-  return last.length ? last.reduce((s, y) => s + y.gpa, 0) / last.length : null;
 }
 
 function fmt(v) { return v !== null && isFinite(v) ? v.toFixed(2) : '—'; }
@@ -751,8 +739,7 @@ function recalc() {
 
   document.getElementById('outCum').textContent = fmt(cum);
   document.getElementById('outL2').textContent  = fmt(wGpa(l2Slice(valid)));
-  document.getElementById('outB3').textContent  = fmt(b3(valid));
-  document.getElementById('outL3').textContent  = fmt(l3(valid));
+  document.getElementById('outB2').textContent  = fmt(b2(valid));
 
   document.getElementById('courseCount').textContent =
     state.rows.length ? `· ${valid.length} of ${state.rows.length} valid` : '';
@@ -884,7 +871,7 @@ function detectInstitution(hay) {
     [/UNIVERSITY OF WESTERN ONTARIO|WESTERN UNIVERSITY/, 'western'],
     [/UNIVERSITY OF WATERLOO/, 'waterloo'],
     [/UNIVERSITY OF GUELPH/, 'guelph'],
-    [/UNIVERSITY OF OTTAWA|UNIVERSIT[ÉE] D'OTTAWA/, 'ottawa'],
+    [/UNIVERSITY OF OTTAWA|UNIVERSIT[ÉE] D'OTTAWA|UOTTAWA/, 'ottawa'],
     [/YORK UNIVERSITY/, 'york'],
     [/CARLETON UNIVERSITY/, 'carleton'],
     [/WILFRID LAURIER/, 'laurier'],
@@ -899,6 +886,15 @@ function detectInstitution(hay) {
     [/OCAD UNIVERSITY/, 'ocad'],
   ];
   for (const [re, key] of map) if (re.test(hay)) return key;
+
+  // Fallback: detect from transcript content patterns when institution name
+  // is in an image (not extractable as text).
+  // Ottawa uses "TGPA" + "YYYY Fall Term" — both unique to their format.
+  if (/\bTGPA\b/.test(hay) && /\d{4}\s+(FALL|WINTER|SPRING\/SUMMER)\s+TERM/.test(hay)) return 'ottawa';
+
+  // OTU (Ontario Tech) uses "INSTITUTION CREDIT" header + "Term: Fall YYYY" format
+  if (/INSTITUTION CREDIT/.test(hay) && /TERM:\s*(FALL|WINTER|SUMMER)\s+\d{4}/.test(hay)) return 'otu';
+
   return null;
 }
 
@@ -931,6 +927,7 @@ function parseMcMaster(lines) {
   const SKIP_RE  = /\b(Term Totals|Cumulative|Transfer Credit|Term GPA|Page \d|Attm.\/Earned|Total Points|GPA Units|Career Record|Transcript valid|Print Date|Issued To|Engineering Work Term|Work Term Details|Company:|Location:|Position\s*:|Start Date|End Date|Program:|Plan:|Term Honours:|Academic Standing|unofficial|Transfer Totals)\b/i;
 
   let yearCounter = 0, currentYear = '';
+  let currentFW = true;
   const fallMap = {};
   const rows = [];
 
@@ -949,6 +946,7 @@ function parseMcMaster(lines) {
       } else {
         currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
       }
+      currentFW = season.startsWith('fall') || season.startsWith('winter');
       return;
     }
 
@@ -979,7 +977,7 @@ function parseMcMaster(lines) {
     if (title.length > 45) title = title.slice(0, 45);
     const display = title ? `${code} – ${title}` : code;
 
-    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade, fw: currentFW });
   });
 
   return rows;
@@ -992,6 +990,7 @@ function parseWaterloo(lines) {
   const SKIP_RE  = /\b(Term GPA|Cumulative GPA|Cumulative Totals|Term Totals|Form Of Study|Attempted\s+Earned|In GPA|Course\s+Description|Level:|Program:|Page \d|Print Date|Transcript|University of Waterloo)\b/i;
 
   let yearCounter = 0, currentYear = '';
+  let currentFW = true;
   const fallMap = {};
   const rows = [];
 
@@ -1010,6 +1009,7 @@ function parseWaterloo(lines) {
       } else {
         currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
       }
+      currentFW = season.startsWith('fall') || season.startsWith('winter');
       return;
     }
 
@@ -1061,7 +1061,7 @@ function parseWaterloo(lines) {
     if (title.length > 45) title = title.slice(0, 45);
     const display = title ? `${code} – ${title}` : code;
 
-    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade, fw: currentFW });
   });
 
   return rows;
@@ -1078,6 +1078,7 @@ function parseTMU(lines) {
   const TAIL_RE  = /(\d+\.\d{3})\s+([ABCDF][+\-]?)\s+(\d+\.\d{3})\s*$/;
 
   let yearCounter = 0, currentYear = '';
+  let currentFW = true;
   const fallMap = {};
   const rows = [];
 
@@ -1096,6 +1097,7 @@ function parseTMU(lines) {
         // Spring/Summer belongs to the academic year of the preceding Fall
         currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
       }
+      currentFW = season.startsWith('fall') || season.startsWith('winter');
       return;
     }
 
@@ -1123,7 +1125,7 @@ function parseTMU(lines) {
     if (title.length > 45) title = title.slice(0, 45);
     const display = title ? `${code} – ${title}` : code;
 
-    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade, fw: currentFW });
   });
 
   return rows;
@@ -1144,6 +1146,7 @@ function parseUBC(lines) {
   const CREDIT_RE = /\((\d+\.\d)\)/;
 
   let currentYear = '';
+  let currentFW = true;
   const rows = [];
 
   lines.forEach(text => {
@@ -1151,8 +1154,12 @@ function parseUBC(lines) {
     const ym = text.match(YEAR_RE);
     if (ym) { currentYear = ym[1]; return; }
 
-    // Session header (skip, year comes from the Year line)
-    if (SESSION_RE.test(text)) return;
+    // Session header — track Fall/Winter vs Summer for B2 calculation
+    const sm = text.match(SESSION_RE);
+    if (sm) {
+      currentFW = sm[2].toLowerCase() === 'winter'; // Winter Session = fall+winter terms
+      return;
+    }
     if (SKIP_RE.test(text)) return;
 
     // Strip leading term number: "1 ", "2 ", "1-2 "
@@ -1191,7 +1198,7 @@ function parseUBC(lines) {
     if (title.length > 45) title = title.slice(0, 45);
     const display = title ? `${code} – ${title}` : code;
 
-    rows.push({ year: currentYear, code: display, weight: String(weight), grade: String(n) });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade: String(n), fw: currentFW });
   });
 
   return rows;
@@ -1210,6 +1217,7 @@ function parseWestern(lines) {
   const SKIP_RE  = /\b(Western University|Student Name:|Print Date:|Basis of Admission|Beginning of|End of|Program:|Plan:|Course\s+Description\s+Attempted|Attempted\s+Earned\s+Grade|Scholarships|Page \d|Repeated:|Ontario Secondary|Faculty of Engineering)\b/i;
 
   let yearCounter = 0, currentYear = '';
+  let currentFW = true;
   const rows = [];
 
   lines.forEach(text => {
@@ -1224,6 +1232,7 @@ function parseWestern(lines) {
       } else if (season === 'summer') {
         // Summer stays in current year
       }
+      currentFW = season.startsWith('fall') || season.startsWith('winter');
       return;
     }
 
@@ -1281,7 +1290,7 @@ function parseWestern(lines) {
     if (title.length > 45) title = title.slice(0, 45);
     const display = title ? `${code} – ${title}` : code;
 
-    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade, fw: currentFW });
   });
 
   return rows;
@@ -1300,6 +1309,7 @@ function parseOttawa(lines) {
   const TAIL_RE  = /\b([ABCDEF][+\-]?)\s+([\d.]+|NC|CR)\s+([\d.]+|N\/A)\s+(\d+|N\/A)\s*$/;
 
   let yearCounter = 0, currentYear = '';
+  let currentFW = true;
   const fallMap = {};
   const rows = [];
 
@@ -1319,6 +1329,7 @@ function parseOttawa(lines) {
         // Spring/Summer belongs to preceding academic year
         currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
       }
+      currentFW = season.startsWith('fall') || season.startsWith('winter');
       return;
     }
 
@@ -1354,7 +1365,77 @@ function parseOttawa(lines) {
     if (title.length > 45) title = title.slice(0, 45);
     const display = title ? `${code} – ${title}` : code;
 
-    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade, fw: currentFW });
+  });
+
+  return rows;
+}
+
+// ── OTU (Ontario Tech University) parser ──
+// Format: "CRMN 1000U UG Intro to Criminology & Just A+ 3.000 12.90"
+// Term headers: "Term: Fall 2023"
+// Course codes have U suffix (1000U), UG level marker, credit hours (3 decimals)
+function parseOTU(lines) {
+  const TERM_RE  = /^\s*Term:\s*(Fall|Winter|Summer)\s+(\d{4})\s*$/i;
+  const SKIP_RE  = /\b(Transcript Data|STUDENT INFORMATION|Name\s*:|Student Type:|Curriculum Information|Current Program|College:|Major:|Minor:|DEGREES AWARDED|Sought:|Primary Degree|INSTITUTION CREDIT|Academic Standing:|Additional Standing:|Subject\s+Course\s+Level|Credit\s+Quality|Hours\s+Points|Start and|End\s+R|Dates|Term Totals|Attempt\s+|Passed|Earned\s+|Current Term:|Cumulative:|Unofficial|Transcript|TRANSCRIPT TOTALS|Total Institution:|Total Transfer:|about:blank|Page \d|\*\*\*This is NOT|GPA\s+Hours)\b/i;
+
+  // Tail: grade credit_hours quality_points → "A+ 3.000 12.90"
+  const TAIL_RE = /([ABCDF][+\-]?)\s+(\d+\.\d{3})\s+(\d+\.\d{2})\s*$/;
+
+  let yearCounter = 0, currentYear = '';
+  let currentFW = true;
+  const fallMap = {};
+  const rows = [];
+
+  lines.forEach(text => {
+    // Term header: "Term: Fall 2023"
+    const tm = text.match(TERM_RE);
+    if (tm) {
+      const season = tm[1].toLowerCase();
+      const cal = parseInt(tm[2], 10);
+      if (season === 'fall') {
+        yearCounter++;
+        fallMap[cal] = yearCounter;
+        currentYear = String(yearCounter);
+      } else if (season === 'winter') {
+        currentYear = String(fallMap[cal - 1] || yearCounter || 1);
+      } else {
+        currentYear = String(fallMap[cal - 1] || fallMap[cal] || yearCounter || '');
+      }
+      currentFW = season.startsWith('fall') || season.startsWith('winter');
+      return;
+    }
+
+    if (SKIP_RE.test(text)) return;
+
+    const cm = text.match(CODE_RE);
+    if (!cm) return;
+    const code = `${cm[1]} ${cm[2]}`;
+    let rest = text.slice(cm.index + cm[0].length).trim();
+
+    // Strip "UG " level marker
+    rest = rest.replace(/^UG\s+/, '');
+
+    // Match tail: "A+ 3.000 12.90"
+    const tail = rest.match(TAIL_RE);
+    if (!tail) return;
+
+    const grade = tail[1];
+    const creditHours = parseFloat(tail[2]);
+
+    if (SKIP_GRADES.has(grade.toUpperCase())) return;
+
+    // Weight: 3.000 credits = half (weight 1), 6.000 = full (weight 2)
+    let weight = 1;
+    if (creditHours >= 5.5) weight = 2;
+    else if (creditHours >= 2.5) weight = 1;
+
+    // Title: everything between code/UG and the tail
+    let title = rest.slice(0, tail.index).trim();
+    if (title.length > 45) title = title.slice(0, 45);
+    const display = title ? `${code} – ${title}` : code;
+
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade, fw: currentFW });
   });
 
   return rows;
@@ -1369,6 +1450,7 @@ function parseGeneric(lines) {
   const SKIP_RE     = /\b(Term Totals|Cumulative|Transfer Credit|Term GPA|Cumulative GPA|Page \d|Attm.\/Earned|Total Points|GPA Units|Career Record|Transcript valid|Print Date|Issued To|Engineering Work Term|Work Term Details|Company:|Location:|Position\s*:|Start Date|End Date|Program:|Plan:|Term Honours:|Academic Standing|unofficial|Transfer Totals|Form Of Study|Attempted\s+Earned|In GPA|Cumulative Totals|Course\s+Description|Level:)\b/i;
 
   let yearCounter = 0, currentYear = '';
+  let currentFW = true;
   const fallMap = {};
   const rows = [];
 
@@ -1390,6 +1472,7 @@ function parseGeneric(lines) {
       } else {
         currentYear = String(fallMap[parts.cal - 1] || fallMap[parts.cal] || yearCounter || '');
       }
+      currentFW = parts.season.startsWith('fall') || parts.season.startsWith('winter');
       return;
     }
     const lm = text.match(LEVEL_RE);
@@ -1443,7 +1526,7 @@ function parseGeneric(lines) {
     if (title.length > 45) title = title.slice(0, 45);
     const display = title ? `${code} – ${title}` : code;
 
-    rows.push({ year: currentYear, code: display, weight: String(weight), grade });
+    rows.push({ year: currentYear, code: display, weight: String(weight), grade, fw: currentFW });
   });
 
   return rows;
@@ -1468,6 +1551,8 @@ function extractCourses(lines) {
     parsed = parseWestern(lines);
   } else if (inst === 'ottawa') {
     parsed = parseOttawa(lines);
+  } else if (inst === 'otu') {
+    parsed = parseOTU(lines);
   } else {
     // For all other universities, try generic which handles both formats
     parsed = parseGeneric(lines);
