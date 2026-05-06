@@ -152,7 +152,7 @@
   /* ============ Metrics ============ */
   .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
   }
   @media (max-width: 768px) { .metrics-grid { grid-template-columns: 1fr 1fr; } }
@@ -393,6 +393,11 @@
       <div class="val" id="outB2">—</div>
       <div class="desc">Best 2 academic years (Fall/Winter only).</div>
     </div>
+    <div class="metric">
+      <div class="label">B3 · Best 3 Yrs</div>
+      <div class="val" id="outB3">—</div>
+      <div class="desc">Best 3 academic years (Fall/Winter only). Used by U of T Law.</div>
+    </div>
   </div>
 
   <!-- ===== Distribution ===== -->
@@ -420,7 +425,7 @@
   </div>
 
   <div class="note">
-    <strong>Disclaimer.</strong> This is an unofficial self-evaluation tool. Your real OLSAS GPA is calculated by OUAC using the institution-specific scale on your transcript — see <a href="https://www.ouac.on.ca/guide/olsas-gpa-calculations/" target="_blank" rel="noopener">ouac.on.ca</a>. L2 and B2 use common heuristics; each law school may compute them slightly differently. B2 only includes Fall/Winter courses. Weight: <strong>1</strong> = half-year (0.5 credit / 3-unit), <strong>2</strong> = full-year (1.0 credit / 6-unit).
+    <strong>Disclaimer.</strong> This is an unofficial self-evaluation tool. Your real OLSAS GPA is calculated by OUAC using the institution-specific scale on your transcript — see <a href="https://www.ouac.on.ca/guide/olsas-gpa-calculations/" target="_blank" rel="noopener">ouac.on.ca</a>. L2, B2, and B3 use common heuristics; each law school may compute them slightly differently. B2/B3 only include Fall/Winter courses. Weight: <strong>1</strong> = half-year (0.5 credit / 3-unit), <strong>2</strong> = full-year (1.0 credit / 6-unit).
   </div>
 
 </div>
@@ -731,6 +736,15 @@ function b2(valid) {
   return top.reduce((s, y) => s + y.gpa, 0) / top.length;
 }
 
+function b3(valid) {
+  // Filter to Fall/Winter courses only
+  const fwOnly = valid.filter(r => r.fw !== false);
+  const yrs = yearGroups(fwOnly);
+  if (!yrs.length) return null;
+  const top = [...yrs].sort((a, b) => b.gpa - a.gpa).slice(0, 3);
+  return top.reduce((s, y) => s + y.gpa, 0) / top.length;
+}
+
 function fmt(v) { return v !== null && isFinite(v) ? v.toFixed(2) : '—'; }
 
 function recalc() {
@@ -740,6 +754,7 @@ function recalc() {
   document.getElementById('outCum').textContent = fmt(cum);
   document.getElementById('outL2').textContent  = fmt(wGpa(l2Slice(valid)));
   document.getElementById('outB2').textContent  = fmt(b2(valid));
+  document.getElementById('outB3').textContent  = fmt(b3(valid));
 
   document.getElementById('courseCount').textContent =
     state.rows.length ? `· ${valid.length} of ${state.rows.length} valid` : '';
