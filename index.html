@@ -521,7 +521,7 @@ const INSTITUTIONS = [
 ];
 
 // Universities with dedicated transcript parsers
-const SUPPORTED_PARSERS = new Set(['mcmaster', 'waterloo', 'tmu', 'ubc', 'western', 'ottawa', 'otu']);
+const SUPPORTED_PARSERS = new Set(['mcmaster', 'waterloo', 'tmu', 'ubc', 'western', 'ottawa', 'otu', 'guelph']);
 
 /* ============================================================
    STATE
@@ -909,6 +909,10 @@ function detectInstitution(hay) {
 
   // OTU (Ontario Tech) uses "INSTITUTION CREDIT" header + "Term: Fall YYYY" format
   if (/INSTITUTION CREDIT/.test(hay) && /TERM:\s*(FALL|WINTER|SUMMER)\s+\d{4}/.test(hay)) return 'otu';
+
+  // Guelph uses concatenated course codes + term codes (F22, W23) at line end
+  // and "Course/Section Title" header with asterisk-wrapped transcript label
+  if (/\*\*\*UNOFFICIAL TRANSCRIPT\*\*\*/.test(hay) && /COURSE\/SECTION\s+TITLE/.test(hay)) return 'guelph';
 
   return null;
 }
@@ -1496,6 +1500,95 @@ function parseOTU(lines) {
   return rows;
 }
 
+// ── University of Guelph parser ──
+// Format: "BIOL1080 0212 Biological Concepts of Health 083 0.50 F22"
+// Codes are concatenated (no space): BIOL1080, CHEM1040, HK3401
+// Tail: 3-digit grade, credit, term code (F22=Fall 2022, W23=Winter 2023)
+// Term is per-line, not per-section header.
+function parseGuelph(lines) {
+  // Guelph course code: letters+digits concatenated, e.g. BIOL1080, HK3401, MBG2040
+  const GUELPH_CODE_RE = /^([A-Z]{2,8}\d{3,4})\s+/;
+  // Tail: grade credit term — "083 0.50 F22" or "095 1.00 W24"
+  const TAIL_RE = /(\d{2,3})\s+(\d+\.\d{2})\s+([FWS]\d{2})\s*$/;
+  const SKIP_RE = /\b(UNOFFICIAL TRANSCRIPT|Course\/Section|Credits Completed|Total Credits|Cumulative|End of unofficial|Current Program|Bachelor of|Major |Page:|\-{10,}|ID:.*NAME:)/i;
+
+  const fallMap = {}; // F22 → year 1, F23 → year 2, etc.
+  let yearCounter = 0;
+  const rows = [];
+
+  // Pass 1: scan for all unique Fall terms to build year map
+  lines.forEach(text => {
+    const tm = text.match(TAIL_RE);
+    if (tm) {
+      const termCode = tm[3]; // e.g. "F22"
+      const season = termCode[0]; // F, W, or S
+      const yr = parseInt(termCode.slice(1), 10); // 22, 23, etc.
+      if (season === 'F' && !fallMap[yr]) {
+        yearCounter++;
+        fallMap[yr] = yearCounter;
+      }
+    }
+  });
+
+  // Pass 2: parse courses
+  lines.forEach(text => {
+    if (SKIP_RE.test(text)) return;
+
+    const cm = text.match(GUELPH_CODE_RE);
+    if (!cm) return;
+    const code = cm[1]; // e.g. "BIOL1080"
+    const rest = text.slice(cm[0].length).trim();
+
+    const tail = rest.match(TAIL_RE);
+    if (!tail) return;
+
+    const gradeStr = tail[1]; // "083"
+    const credit = parseFloat(tail[2]); // 0.50
+    const termCode = tail[3]; // "F22"
+    const season = termCode[0];
+    const termYr = parseInt(termCode.slice(1), 10);
+
+    // Parse grade (strip leading zero)
+    const n = parseInt(gradeStr, 10);
+    if (n < 0 || n > 100) return;
+    const grade = String(n);
+
+    // Weight from credit
+    let weight = 1;
+    if (credit >= 0.9) weight = 2;     // 1.00 = full year
+    else if (credit >= 0.4) weight = 1; // 0.50 or 0.75 = half
+
+    // Year from term code
+    let year = '';
+    if (season === 'F') {
+      year = String(fallMap[termYr] || '');
+    } else if (season === 'W') {
+      // Winter YY belongs to Fall (YY-1)
+      year = String(fallMap[termYr - 1] || '');
+    } else {
+      // Summer belongs to preceding Fall
+      year = String(fallMap[termYr - 1] || fallMap[termYr] || '');
+    }
+
+    const fw = (season === 'F' || season === 'W');
+
+    // Skip section number, extract title
+    const beforeTail = rest.slice(0, tail.index).trim();
+    // Section is the first token (e.g. "0212", "01", "DE01")
+    const sectionMatch = beforeTail.match(/^(\S+)\s+/);
+    let title = sectionMatch ? beforeTail.slice(sectionMatch[0].length).trim() : beforeTail;
+    if (title.length > 45) title = title.slice(0, 45);
+
+    // Format code readably: insert space (BIOL1080 → BIOL 1080)
+    const displayCode = code.replace(/^([A-Z]+)(\d+)$/, '$1 $2');
+    const display = title ? `${displayCode} – ${title}` : displayCode;
+
+    rows.push({ year, code: display, weight: String(weight), grade, fw });
+  });
+
+  return rows;
+}
+
 // ── Generic parser (fallback) ──
 // Tries all strategies — used when institution isn't detected.
 function parseGeneric(lines) {
@@ -1608,6 +1701,8 @@ function extractCourses(lines) {
     parsed = parseOttawa(lines);
   } else if (inst === 'otu') {
     parsed = parseOTU(lines);
+  } else if (inst === 'guelph') {
+    parsed = parseGuelph(lines);
   } else {
     // For all other universities, try generic which handles both formats
     parsed = parseGeneric(lines);
